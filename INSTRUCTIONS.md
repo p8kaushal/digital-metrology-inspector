@@ -84,9 +84,9 @@ After completing a task, before marking it done:
 - [x] 5. Coin detection module (OpenCV Hough Circle Transform) — detect ₹5 coin, get pixel diameter
 - [x] 6. Calibration module — compute pixels-per-mm ratio using 21.9mm fixed coin diameter
 - [x] 7. Text region detection on label images (front/back separately)
-- [x] 8. OCR extraction via PaddleOCR on detected text regions
-- [x] 9. Field structuring/parsing — regex/keyword matching into structured fields (MRP, Net Qty, Manufacturer, Mfg/Expiry Date, Batch No., Consumer Care, Country of Origin)
-- [~] 10. Font-height measurement for key fields, converted to mm via calibration ratio
+- [x] 8. OCR extraction via PaddleOCR on detected text regions (enhanced with dot-matrix CLAHE/bilateral/morphological closing preprocessing & multi-pass inference)
+- [x] 9. Field structuring/parsing — regex/keyword matching into structured fields (MRP, Net Qty, Manufacturer, Mfg/Expiry Date, Batch No., Consumer Care, Country of Origin) with adjacent & stacked back panel support
+- [x] 10. Font-height measurement for key fields, converted to mm via calibration ratio
 - [x] 11. Store structured extraction results in Supabase (`extracted_fields`, linked to scan ID)
 - [x] 12. Data consolidation — merge front + back records into one product record
 - [x] 13. Report generation — editable Word doc (python-docx) + PDF export, listing all fields + font measurements per side

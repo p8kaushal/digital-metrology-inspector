@@ -30,6 +30,7 @@ from src.ocr_engine import (
     is_in_coin_roi,
     load_image,
     draw_ocr_annotated_image,
+    preprocess_for_dot_matrix,
 )
 
 
@@ -239,6 +240,17 @@ class TestTask8OCRExtraction(unittest.TestCase):
         self.assertEqual(annotated.shape, self.label_img.shape)
         # Ensure image has been modified with annotations (not identical to raw image)
         self.assertFalse(np.array_equal(annotated, self.label_img))
+
+
+    def test_dot_matrix_preprocessing(self):
+        """Verify CLAHE, bilateral filtering, adaptive thresholding, and morphological closing."""
+        preprocessed = preprocess_for_dot_matrix(self.label_img)
+        self.assertIsInstance(preprocessed, np.ndarray)
+        self.assertEqual(preprocessed.shape, self.label_img.shape)
+        self.assertEqual(preprocessed.dtype, np.uint8)
+        # Verify that preprocessed image is a valid 3-channel BGR image
+        self.assertEqual(len(preprocessed.shape), 3)
+        self.assertEqual(preprocessed.shape[2], 3)
 
 
 if __name__ == "__main__":

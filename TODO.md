@@ -33,11 +33,12 @@ This file serves as the dedicated progress tracker for all tasks across Phase 1,
   - *Completed:* 2026-09-07
 
 - [x] **Task 8: OCR Extraction**
-  - *Details:* PaddleOCR text extraction on detected label regions.
+  - *Details:* PaddleOCR text extraction on detected label regions with dot-matrix CLAHE/bilateral/morphological closing preprocessing & multi-pass inference.
   - *Completed:* 2026-09-07
 
 - [x] **Task 9: Field Structuring & Parsing**
-  - *Details:* Regex/keyword proximity matching into structured fields (MRP, Net Qty, Manufacturer, Mfg Date, Batch No, Consumer Care, Country of Origin).
+  - *Details:* Regex/keyword proximity matching into structured fields (MRP, Net Qty, Manufacturer, Mfg Date, Batch No, Consumer Care, Country of Origin) with adjacent and stacked packaging back-panel parsing.
+  - *Completed:* 2026-09-07
 
 - [x] **Task 10: Font-Height Measurement**
   - *Details:* Measure bounding box heights for key fields in mm using calibration ratio.

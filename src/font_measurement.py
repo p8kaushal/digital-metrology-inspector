@@ -94,7 +94,11 @@ def get_rule7_minimum_height_mm(
     """
     if field_name == "net_quantity" and net_quantity_val is not None:
         unit_str = (unit or "").lower().strip()
-        qty = float(net_quantity_val)
+        try:
+            qty = float(net_quantity_val)
+        except (ValueError, TypeError):
+            m = re.search(r"[\d\.]+", str(net_quantity_val))
+            qty = float(m.group(0)) if m else 0.0
         if unit_str in ["kg", "l", "liter", "litre", "kilogram"]:
             qty = qty * 1000.0
 

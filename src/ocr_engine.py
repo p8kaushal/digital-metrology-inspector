@@ -105,6 +105,52 @@ def is_in_coin_roi(
     return False
 
 
+def preprocess_for_dot_matrix(img: np.ndarray) -> np.ndarray:
+    """Apply CLAHE, bilateral filtering, adaptive thresholding, and morphological closing to enhance dot-matrix text."""
+    # Convert to grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Apply CLAHE
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(gray)
+
+    # Bilateral filter to smooth noise but preserve edges
+    filtered = cv2.bilateralFilter(enhanced, 9, 75, 75)
+
+    # Adaptive thresholding with sufficiently large block size to avoid salt-and-pepper noise
+    thresh = cv2.adaptiveThreshold(
+        filtered, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 31, 5
+    )
+
+    # Morphological closing to connect dot gaps
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
+    # Convert back to BGR for PaddleOCR (inverting back to white background)
+    closed_inv = cv2.bitwise_not(closed)
+    return cv2.cvtColor(closed_inv, cv2.COLOR_GRAY2BGR)
+
+
+def bbox_overlap_ratio(box1: list[int], box2: list[int]) -> float:
+    """Calculate the overlap ratio between two bounding boxes: intersection / min(area1, area2)."""
+    x1 = max(box1[0], box2[0])
+    y1 = max(box1[1], box2[1])
+    x2 = min(box1[2], box2[2])
+    y2 = min(box1[3], box2[3])
+
+    inter_w = max(0, x2 - x1)
+    inter_h = max(0, y2 - y1)
+    inter_area = inter_w * inter_h
+
+    if inter_area <= 0:
+        return 0.0
+
+    area1 = max(1, (box1[2] - box1[0]) * (box1[3] - box1[1]))
+    area2 = max(1, (box2[2] - box2[0]) * (box2[3] - box2[1]))
+
+    return float(inter_area) / float(min(area1, area2))
+
+
 _paddle_ocr_singleton = None
 _paddle_ocr_init_failed = False
 
@@ -372,67 +418,94 @@ def extract_text_from_image(
         ocr = get_paddle_ocr()
         if ocr is not None:
             try:
-                preds = list(ocr.predict(masked_img))
-                if preds and len(preds) > 0:
-                    item = preds[0]
-                    rec_texts = item.get("rec_texts", [])
-                    rec_scores = item.get("rec_scores", [])
-                    rec_boxes = item.get("rec_boxes", [])
-                    rec_polys = item.get("rec_polys", [])
-
-                    for idx in range(len(rec_texts)):
-                        text = str(rec_texts[idx]).strip()
-                        if not text:
-                            continue
-                        conf = (
-                            float(rec_scores[idx])
-                            if idx < len(rec_scores)
-                            else 0.9
-                        )
-
-                        if idx < len(rec_boxes):
-                            b = rec_boxes[idx]
-                            x1, y1, x2, y2 = (
-                                int(b[0]),
-                                int(b[1]),
-                                int(b[2]),
-                                int(b[3]),
-                            )
-                        else:
-                            continue
-
-                        x_min, x_max = min(x1, x2), max(x1, x2)
-                        y_min, y_max = min(y1, y2), max(y1, y2)
-                        bbox = [x_min, y_min, x_max, y_max]
-
-                        # Ensure line does not intersect coin ROI
-                        if is_in_coin_roi(bbox, coin_center, coin_radius):
-                            continue
-
-                        if idx < len(rec_polys):
-                            poly_arr = np.array(rec_polys[idx], dtype=np.int32)
-                            polygon = [
-                                [int(pt[0]), int(pt[1])] for pt in poly_arr
-                            ]
-                        else:
-                            polygon = [
-                                [x_min, y_min],
-                                [x_max, y_min],
-                                [x_max, y_max],
-                                [x_min, y_max],
-                            ]
-
-                        lines.append(
-                            OCRLineItem(
-                                text=text,
-                                confidence=round(conf, 4),
-                                bbox=bbox,
-                                polygon=polygon,
-                                width_px=float(x_max - x_min),
-                                height_px=float(y_max - y_min),
-                            )
-                        )
+                # Multi-pass: raw and preprocessed
+                images_to_process = [masked_img, preprocess_for_dot_matrix(masked_img)]
                 used_engine = "paddleocr"
+                
+                for img_pass in images_to_process:
+                    preds = list(ocr.predict(img_pass))
+                    if preds and len(preds) > 0:
+                        item = preds[0]
+                        rec_texts = item.get("rec_texts", [])
+                        rec_scores = item.get("rec_scores", [])
+                        rec_boxes = item.get("rec_boxes", [])
+                        rec_polys = item.get("rec_polys", [])
+
+                        for idx in range(len(rec_texts)):
+                            text = str(rec_texts[idx]).strip()
+                            if not text:
+                                continue
+                            conf = (
+                                float(rec_scores[idx])
+                                if idx < len(rec_scores)
+                                else 0.9
+                            )
+
+                            if idx < len(rec_boxes):
+                                b = rec_boxes[idx]
+                                x1, y1, x2, y2 = (
+                                    int(b[0]),
+                                    int(b[1]),
+                                    int(b[2]),
+                                    int(b[3]),
+                                )
+                            else:
+                                continue
+
+                            x_min, x_max = min(x1, x2), max(x1, x2)
+                            y_min, y_max = min(y1, y2), max(y1, y2)
+                            if (x_max - x_min) < 8 or (y_max - y_min) < 8:
+                                continue
+                            bbox = [x_min, y_min, x_max, y_max]
+
+                            # Ensure line does not intersect coin ROI
+                            if is_in_coin_roi(bbox, coin_center, coin_radius):
+                                continue
+
+                            if idx < len(rec_polys):
+                                poly_arr = np.array(rec_polys[idx], dtype=np.int32)
+                                polygon = [
+                                    [int(pt[0]), int(pt[1])] for pt in poly_arr
+                                ]
+                            else:
+                                polygon = [
+                                    [x_min, y_min],
+                                    [x_max, y_min],
+                                    [x_max, y_max],
+                                    [x_min, y_max],
+                                ]
+                            
+                            # Multi-pass deduplication:
+                            # 1. High spatial overlap indicates the same physical line already extracted
+                            # 2. Duplicate text at close vertical proximity is skipped
+                            is_dup = False
+                            for existing in lines:
+                                overlap = bbox_overlap_ratio(bbox, existing.bbox)
+                                if overlap > 0.40:
+                                    is_dup = True
+                                    break
+                                norm_new = text.strip().lower()
+                                norm_exist = existing.text.strip().lower()
+                                if norm_new == norm_exist and abs(bbox[1] - existing.bbox[1]) < 40:
+                                    is_dup = True
+                                    break
+                                if (norm_new in norm_exist or norm_exist in norm_new) and overlap > 0.20:
+                                    is_dup = True
+                                    break
+
+                            if is_dup:
+                                continue
+
+                            lines.append(
+                                OCRLineItem(
+                                    text=text,
+                                    confidence=round(conf, 4),
+                                    bbox=bbox,
+                                    polygon=polygon,
+                                    width_px=float(x_max - x_min),
+                                    height_px=float(y_max - y_min),
+                                )
+                            )
             except Exception as exc:
                 logger.warning(f"PaddleOCR prediction failed: {exc}")
 
