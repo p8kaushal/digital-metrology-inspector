@@ -1,0 +1,1250 @@
+[
+  {
+    "line_number": 0,
+    "confidence": 1.0,
+    "height_px": 81.0,
+    "bbox": [
+      502,
+      1473,
+      1196,
+      1554
+    ],
+    "text": "TAMARIND DATE"
+  },
+  {
+    "line_number": 1,
+    "confidence": 1.0,
+    "height_px": 94.0,
+    "bbox": [
+      1301,
+      1485,
+      1755,
+      1579
+    ],
+    "text": "Mother's"
+  },
+  {
+    "line_number": 2,
+    "confidence": 1.0,
+    "height_px": 67.0,
+    "bbox": [
+      636,
+      1567,
+      1018,
+      1634
+    ],
+    "text": "CHUTNEY"
+  },
+  {
+    "line_number": 3,
+    "confidence": 1.0,
+    "height_px": 41.0,
+    "bbox": [
+      1440,
+      1569,
+      1618,
+      1610
+    ],
+    "text": "RECIPE"
+  },
+  {
+    "line_number": 4,
+    "confidence": 1.0,
+    "height_px": 65.0,
+    "bbox": [
+      1290,
+      1648,
+      1997,
+      1713
+    ],
+    "text": "NUTRITIONAL INFORMATION (Approx Values)"
+  },
+  {
+    "line_number": 5,
+    "confidence": 1.0,
+    "height_px": 61.0,
+    "bbox": [
+      485,
+      1680,
+      1226,
+      1741
+    ],
+    "text": "SAVOUR YOUR FAVOURITE SNACKS"
+  },
+  {
+    "line_number": 6,
+    "confidence": 1.0,
+    "height_px": 43.0,
+    "bbox": [
+      1264,
+      1717,
+      1516,
+      1760
+    ],
+    "text": "10 serves per package"
+  },
+  {
+    "line_number": 7,
+    "confidence": 1.0,
+    "height_px": 33.0,
+    "bbox": [
+      1715,
+      1703,
+      1841,
+      1736
+    ],
+    "text": "Per Serve"
+  },
+  {
+    "line_number": 8,
+    "confidence": 0.98,
+    "height_px": 32.0,
+    "bbox": [
+      1533,
+      1723,
+      1658,
+      1755
+    ],
+    "text": "Per 100 g"
+  },
+  {
+    "line_number": 9,
+    "confidence": 0.93,
+    "height_px": 37.0,
+    "bbox": [
+      1705,
+      1731,
+      1852,
+      1768
+    ],
+    "text": "20 g (4 tsp)"
+  },
+  {
+    "line_number": 10,
+    "confidence": 0.98,
+    "height_px": 60.0,
+    "bbox": [
+      480,
+      1744,
+      1230,
+      1804
+    ],
+    "text": "WITH THE TANG OF TAMARIND AND"
+  },
+  {
+    "line_number": 11,
+    "confidence": 0.98,
+    "height_px": 41.0,
+    "bbox": [
+      1271,
+      1768,
+      1415,
+      1809
+    ],
+    "text": "Energy (kcal)"
+  },
+  {
+    "line_number": 12,
+    "confidence": 1.0,
+    "height_px": 33.0,
+    "bbox": [
+      1582,
+      1774,
+      1632,
+      1807
+    ],
+    "text": "263"
+  },
+  {
+    "line_number": 13,
+    "confidence": 1.0,
+    "height_px": 34.0,
+    "bbox": [
+      1766,
+      1769,
+      1812,
+      1803
+    ],
+    "text": "52"
+  },
+  {
+    "line_number": 14,
+    "confidence": 1.0,
+    "height_px": 32.0,
+    "bbox": [
+      1952,
+      1764,
+      1976,
+      1796
+    ],
+    "text": "3"
+  },
+  {
+    "line_number": 15,
+    "confidence": 1.0,
+    "height_px": 64.0,
+    "bbox": [
+      478,
+      1804,
+      1235,
+      1868
+    ],
+    "text": "SWEETNESS OF DATE WITH OUR"
+  },
+  {
+    "line_number": 16,
+    "confidence": 1.0,
+    "height_px": 41.0,
+    "bbox": [
+      1272,
+      1802,
+      1389,
+      1843
+    ],
+    "text": "Protein (g)"
+  },
+  {
+    "line_number": 17,
+    "confidence": 1.0,
+    "height_px": 36.0,
+    "bbox": [
+      1765,
+      1806,
+      1810,
+      1842
+    ],
+    "text": "0.1"
+  },
+  {
+    "line_number": 18,
+    "confidence": 1.0,
+    "height_px": 34.0,
+    "bbox": [
+      1589,
+      1812,
+      1635,
+      1846
+    ],
+    "text": "0.5"
+  },
+  {
+    "line_number": 19,
+    "confidence": 1.0,
+    "height_px": 43.0,
+    "bbox": [
+      1275,
+      1839,
+      1458,
+      1882
+    ],
+    "text": "Carbohydrate (g)"
+  },
+  {
+    "line_number": 20,
+    "confidence": 1.0,
+    "height_px": 34.0,
+    "bbox": [
+      1575,
+      1850,
+      1636,
+      1884
+    ],
+    "text": "65.0"
+  },
+  {
+    "line_number": 21,
+    "confidence": 1.0,
+    "height_px": 35.0,
+    "bbox": [
+      1753,
+      1845,
+      1813,
+      1880
+    ],
+    "text": "13.0"
+  },
+  {
+    "line_number": 22,
+    "confidence": 1.0,
+    "height_px": 57.0,
+    "bbox": [
+      479,
+      1870,
+      1056,
+      1927
+    ],
+    "text": "TAMARIND DATE CHUTNEY."
+  },
+  {
+    "line_number": 23,
+    "confidence": 1.0,
+    "height_px": 41.0,
+    "bbox": [
+      1297,
+      1877,
+      1469,
+      1918
+    ],
+    "text": "Total Sugars (g)"
+  },
+  {
+    "line_number": 24,
+    "confidence": 1.0,
+    "height_px": 31.0,
+    "bbox": [
+      1578,
+      1889,
+      1636,
+      1920
+    ],
+    "text": "63.5"
+  },
+  {
+    "line_number": 25,
+    "confidence": 1.0,
+    "height_px": 34.0,
+    "bbox": [
+      1753,
+      1884,
+      1812,
+      1918
+    ],
+    "text": "12.7"
+  },
+  {
+    "line_number": 26,
+    "confidence": 1.0,
+    "height_px": 41.0,
+    "bbox": [
+      1298,
+      1913,
+      1490,
+      1954
+    ],
+    "text": "Added Sugars (g)"
+  },
+  {
+    "line_number": 27,
+    "confidence": 1.0,
+    "height_px": 32.0,
+    "bbox": [
+      1580,
+      1924,
+      1637,
+      1956
+    ],
+    "text": "54.0"
+  },
+  {
+    "line_number": 28,
+    "confidence": 1.0,
+    "height_px": 36.0,
+    "bbox": [
+      1754,
+      1921,
+      1813,
+      1957
+    ],
+    "text": "10.8"
+  },
+  {
+    "line_number": 29,
+    "confidence": 1.0,
+    "height_px": 35.0,
+    "bbox": [
+      1946,
+      1914,
+      1984,
+      1949
+    ],
+    "text": "22"
+  },
+  {
+    "line_number": 30,
+    "confidence": 0.99,
+    "height_px": 58.0,
+    "bbox": [
+      477,
+      1934,
+      1242,
+      1992
+    ],
+    "text": "Serving Suggestions: Use our Mother's Recipe"
+  },
+  {
+    "line_number": 31,
+    "confidence": 0.93,
+    "height_px": 124.0,
+    "bbox": [
+      2136,
+      1928,
+      2167,
+      2052
+    ],
+    "text": "TERS"
+  },
+  {
+    "line_number": 32,
+    "confidence": 1.0,
+    "height_px": 38.0,
+    "bbox": [
+      1280,
+      1949,
+      1411,
+      1987
+    ],
+    "text": "Total Fat (g)"
+  },
+  {
+    "line_number": 33,
+    "confidence": 1.0,
+    "height_px": 31.0,
+    "bbox": [
+      1953,
+      1955,
+      1977,
+      1986
+    ],
+    "text": "0"
+  },
+  {
+    "line_number": 34,
+    "confidence": 1.0,
+    "height_px": 33.0,
+    "bbox": [
+      1593,
+      1960,
+      1637,
+      1993
+    ],
+    "text": "0.1"
+  },
+  {
+    "line_number": 35,
+    "confidence": 1.0,
+    "height_px": 33.0,
+    "bbox": [
+      1768,
+      1960,
+      1813,
+      1993
+    ],
+    "text": "0.0"
+  },
+  {
+    "line_number": 36,
+    "confidence": 0.88,
+    "height_px": 54.0,
+    "bbox": [
+      2096,
+      1966,
+      2137,
+      2020
+    ],
+    "text": "4"
+  },
+  {
+    "line_number": 37,
+    "confidence": 0.99,
+    "height_px": 51.0,
+    "bbox": [
+      478,
+      1984,
+      1241,
+      2035
+    ],
+    "text": "Tamarind Date Chutney as a dip with Samosa,"
+  },
+  {
+    "line_number": 38,
+    "confidence": 1.0,
+    "height_px": 39.0,
+    "bbox": [
+      1295,
+      1985,
+      1474,
+      2024
+    ],
+    "text": "Saturated Fat (g)"
+  },
+  {
+    "line_number": 39,
+    "confidence": 1.0,
+    "height_px": 39.0,
+    "bbox": [
+      1297,
+      2021,
+      1435,
+      2060
+    ],
+    "text": "Trans Fat (g)"
+  },
+  {
+    "line_number": 40,
+    "confidence": 1.0,
+    "height_px": 33.0,
+    "bbox": [
+      1594,
+      2032,
+      1639,
+      2065
+    ],
+    "text": "0.0"
+  },
+  {
+    "line_number": 41,
+    "confidence": 1.0,
+    "height_px": 31.0,
+    "bbox": [
+      1955,
+      2029,
+      1976,
+      2060
+    ],
+    "text": "0"
+  },
+  {
+    "line_number": 42,
+    "confidence": 1.0,
+    "height_px": 48.0,
+    "bbox": [
+      482,
+      2033,
+      981,
+      2081
+    ],
+    "text": "Patties or even with French Fries."
+  },
+  {
+    "line_number": 43,
+    "confidence": 1.0,
+    "height_px": 40.0,
+    "bbox": [
+      1299,
+      2056,
+      1478,
+      2096
+    ],
+    "text": "Cholesterol (mg)"
+  },
+  {
+    "line_number": 44,
+    "confidence": 1.0,
+    "height_px": 41.0,
+    "bbox": [
+      1286,
+      2089,
+      1431,
+      2130
+    ],
+    "text": "Sodium (mg)"
+  },
+  {
+    "line_number": 45,
+    "confidence": 1.0,
+    "height_px": 42.0,
+    "bbox": [
+      488,
+      2105,
+      848,
+      2147
+    ],
+    "text": "SHAKE WELL BEFORE USE."
+  },
+  {
+    "line_number": 46,
+    "confidence": 1.0,
+    "height_px": 38.0,
+    "bbox": [
+      1569,
+      2100,
+      1641,
+      2138
+    ],
+    "text": "800.0"
+  },
+  {
+    "line_number": 47,
+    "confidence": 1.0,
+    "height_px": 30.0,
+    "bbox": [
+      1955,
+      2104,
+      1976,
+      2134
+    ],
+    "text": "8"
+  },
+  {
+    "line_number": 48,
+    "confidence": 0.51,
+    "height_px": 1350.0,
+    "bbox": [
+      2091,
+      2102,
+      2129,
+      3452
+    ],
+    "text": "m"
+  },
+  {
+    "line_number": 49,
+    "confidence": 1.0,
+    "height_px": 30.0,
+    "bbox": [
+      1743,
+      2109,
+      1813,
+      2139
+    ],
+    "text": "160.0"
+  },
+  {
+    "line_number": 50,
+    "confidence": 1.0,
+    "height_px": 50.0,
+    "bbox": [
+      490,
+      2145,
+      1246,
+      2195
+    ],
+    "text": "Ingredients: Sugar, Water, Tamarind (9%), Dates (2%),"
+  },
+  {
+    "line_number": 51,
+    "confidence": 0.99,
+    "height_px": 44.0,
+    "bbox": [
+      1284,
+      2153,
+      1498,
+      2197
+    ],
+    "text": "2000 calories a day."
+  },
+  {
+    "line_number": 52,
+    "confidence": 0.99,
+    "height_px": 48.0,
+    "bbox": [
+      496,
+      2185,
+      1250,
+      2233
+    ],
+    "text": "Iodized Salt, Acidity Regulator (INS 260), Mixed Spices"
+  },
+  {
+    "line_number": 53,
+    "confidence": 0.99,
+    "height_px": 78.0,
+    "bbox": [
+      1269,
+      2221,
+      1565,
+      2299
+    ],
+    "text": "Net Quantity :"
+  },
+  {
+    "line_number": 54,
+    "confidence": 1.0,
+    "height_px": 41.0,
+    "bbox": [
+      505,
+      2228,
+      856,
+      2269
+    ],
+    "text": "& Preservative (INS 211)."
+  },
+  {
+    "line_number": 55,
+    "confidence": 1.0,
+    "height_px": 78.0,
+    "bbox": [
+      1622,
+      2234,
+      1781,
+      2312
+    ],
+    "text": "200 g"
+  },
+  {
+    "line_number": 56,
+    "confidence": 1.0,
+    "height_px": 44.0,
+    "bbox": [
+      510,
+      2269,
+      1253,
+      2313
+    ],
+    "text": "May Contain Milk, Soy, Nut, Peanut, Wheat and"
+  },
+  {
+    "line_number": 57,
+    "confidence": 1.0,
+    "height_px": 44.0,
+    "bbox": [
+      512,
+      2309,
+      652,
+      2353
+    ],
+    "text": "Sulphite."
+  },
+  {
+    "line_number": 58,
+    "confidence": 0.89,
+    "height_px": 62.0,
+    "bbox": [
+      1275,
+      2313,
+      1425,
+      2375
+    ],
+    "text": "MRP:"
+  },
+  {
+    "line_number": 59,
+    "confidence": 1.0,
+    "height_px": 46.0,
+    "bbox": [
+      511,
+      2348,
+      1254,
+      2394
+    ],
+    "text": "Store in a cool, dry & hygienic place. Refrigerate after opening."
+  },
+  {
+    "line_number": 60,
+    "confidence": 0.99,
+    "height_px": 40.0,
+    "bbox": [
+      1280,
+      2363,
+      1483,
+      2403
+    ],
+    "text": "(Inclusive of all taxes)"
+  },
+  {
+    "line_number": 61,
+    "confidence": 1.0,
+    "height_px": 51.0,
+    "bbox": [
+      1745,
+      2372,
+      1911,
+      2423
+    ],
+    "text": "70.00"
+  },
+  {
+    "line_number": 62,
+    "confidence": 0.99,
+    "height_px": 39.0,
+    "bbox": [
+      511,
+      2386,
+      1256,
+      2425
+    ],
+    "text": "Please do not consume if the package is found leaking or bloated."
+  },
+  {
+    "line_number": 63,
+    "confidence": 0.96,
+    "height_px": 57.0,
+    "bbox": [
+      1281,
+      2403,
+      1476,
+      2460
+    ],
+    "text": "Batch No :"
+  },
+  {
+    "line_number": 64,
+    "confidence": 0.95,
+    "height_px": 62.0,
+    "bbox": [
+      1593,
+      2405,
+      1987,
+      2467
+    ],
+    "text": "USP.F0.35/3"
+  },
+  {
+    "line_number": 65,
+    "confidence": 1.0,
+    "height_px": 70.0,
+    "bbox": [
+      1279,
+      2452,
+      1639,
+      2522
+    ],
+    "text": "Date of Packaging :"
+  },
+  {
+    "line_number": 66,
+    "confidence": 0.94,
+    "height_px": 59.0,
+    "bbox": [
+      1734,
+      2452,
+      2029,
+      2511
+    ],
+    "text": "B2605 14"
+  },
+  {
+    "line_number": 67,
+    "confidence": 1.0,
+    "height_px": 61.0,
+    "bbox": [
+      1743,
+      2493,
+      2026,
+      2554
+    ],
+    "text": "14/05/26"
+  },
+  {
+    "line_number": 68,
+    "confidence": 0.98,
+    "height_px": 45.0,
+    "bbox": [
+      512,
+      2506,
+      1262,
+      2551
+    ],
+    "text": "A Quality Product of Desai Foods Pvt. Ltd., 2-A, Atur"
+  },
+  {
+    "line_number": 69,
+    "confidence": 1.0,
+    "height_px": 71.0,
+    "bbox": [
+      1280,
+      2503,
+      1440,
+      2574
+    ],
+    "text": "Use By:"
+  },
+  {
+    "line_number": 70,
+    "confidence": 1.0,
+    "height_px": 62.0,
+    "bbox": [
+      1745,
+      2532,
+      2024,
+      2594
+    ],
+    "text": "13/05/27"
+  },
+  {
+    "line_number": 71,
+    "confidence": 0.99,
+    "height_px": 45.0,
+    "bbox": [
+      516,
+      2543,
+      1155,
+      2588
+    ],
+    "text": "Chambers, Camp, Pune, Maharashtra- 411001, India."
+  },
+  {
+    "line_number": 72,
+    "confidence": 1.0,
+    "height_px": 65.0,
+    "bbox": [
+      1284,
+      2571,
+      1939,
+      2636
+    ],
+    "text": "For any questions, comments or complaints,"
+  },
+  {
+    "line_number": 73,
+    "confidence": 0.98,
+    "height_px": 63.0,
+    "bbox": [
+      515,
+      2581,
+      1115,
+      2644
+    ],
+    "text": "fssat Lic. No.10012022000108"
+  },
+  {
+    "line_number": 74,
+    "confidence": 0.66,
+    "height_px": 175.0,
+    "bbox": [
+      1998,
+      2615,
+      2037,
+      2790
+    ],
+    "text": "dia  nl"
+  },
+  {
+    "line_number": 75,
+    "confidence": 0.99,
+    "height_px": 79.0,
+    "bbox": [
+      1291,
+      2642,
+      1961,
+      2721
+    ],
+    "text": "+91 7350495495, emall at"
+  },
+  {
+    "line_number": 76,
+    "confidence": 1.0,
+    "height_px": 45.0,
+    "bbox": [
+      514,
+      2649,
+      1144,
+      2694
+    ],
+    "text": "For Manufacturing Unit address see first character"
+  },
+  {
+    "line_number": 77,
+    "confidence": 0.92,
+    "height_px": 103.0,
+    "bbox": [
+      1967,
+      2650,
+      2003,
+      2753
+    ],
+    "text": "For Sae in"
+  },
+  {
+    "line_number": 78,
+    "confidence": 1.0,
+    "height_px": 42.0,
+    "bbox": [
+      515,
+      2689,
+      858,
+      2731
+    ],
+    "text": "of Batch No. & See Below:"
+  },
+  {
+    "line_number": 79,
+    "confidence": 0.66,
+    "height_px": 55.0,
+    "bbox": [
+      512,
+      2757,
+      1975,
+      2812
+    ],
+    "text": "Bagaore Hgway, TaBh,Ds Pune,Maharasra-412205. orwrieto us on Desai FoodsPvLd,Camp,Pune addres."
+  },
+  {
+    "line_number": 80,
+    "confidence": 0.98,
+    "height_px": 66.0,
+    "bbox": [
+      513,
+      2800,
+      967,
+      2866
+    ],
+    "text": "Lic. No.10012022000105"
+  },
+  {
+    "line_number": 81,
+    "confidence": 0.25,
+    "height_px": 47.0,
+    "bbox": [
+      1312,
+      2816,
+      1489,
+      2863
+    ],
+    "text": "\u25a13O"
+  },
+  {
+    "line_number": 82,
+    "confidence": 0.98,
+    "height_px": 55.0,
+    "bbox": [
+      515,
+      2864,
+      1260,
+      2919
+    ],
+    "text": "B) Desal Foods Pvt. Ltd., S. No. 554, 554/2, 562/2."
+  },
+  {
+    "line_number": 83,
+    "confidence": 0.98,
+    "height_px": 51.0,
+    "bbox": [
+      516,
+      2905,
+      1259,
+      2956
+    ],
+    "text": "532/2/A, 555, Village Bharoda, Tal-Umreth, Dist-Anand,"
+  },
+  {
+    "line_number": 84,
+    "confidence": 0.96,
+    "height_px": 42.0,
+    "bbox": [
+      521,
+      2950,
+      734,
+      2992
+    ],
+    "text": "Gularat-388210."
+  },
+  {
+    "line_number": 85,
+    "confidence": 0.98,
+    "height_px": 61.0,
+    "bbox": [
+      525,
+      2989,
+      955,
+      3050
+    ],
+    "text": "Lic. No.10017021002736"
+  },
+  {
+    "line_number": 86,
+    "confidence": 1.0,
+    "height_px": 39.0,
+    "bbox": [
+      1356,
+      3007,
+      1425,
+      3046
+    ],
+    "text": "Scan"
+  },
+  {
+    "line_number": 87,
+    "confidence": 1.0,
+    "height_px": 61.0,
+    "bbox": [
+      1527,
+      3010,
+      1997,
+      3071
+    ],
+    "text": "8907316005281"
+  },
+  {
+    "line_number": 88,
+    "confidence": 0.96,
+    "height_px": 38.0,
+    "bbox": [
+      1306,
+      3041,
+      1481,
+      3079
+    ],
+    "text": "to buy another"
+  },
+  {
+    "line_number": 89,
+    "confidence": 1.0,
+    "height_px": 150.0,
+    "bbox": [
+      563,
+      3085,
+      772,
+      3235
+    ],
+    "text": "Also"
+  },
+  {
+    "line_number": 90,
+    "confidence": 0.88,
+    "height_px": 33.0,
+    "bbox": [
+      1191,
+      3085,
+      1223,
+      3118
+    ],
+    "text": "n"
+  },
+  {
+    "line_number": 91,
+    "confidence": 0.22,
+    "height_px": 36.0,
+    "bbox": [
+      1657,
+      3085,
+      1693,
+      3121
+    ],
+    "text": "\u6253"
+  },
+  {
+    "line_number": 92,
+    "confidence": 0.43,
+    "height_px": 50.0,
+    "bbox": [
+      908,
+      3141,
+      1039,
+      3191
+    ],
+    "text": "CYATA"
+  },
+  {
+    "line_number": 93,
+    "confidence": 0.58,
+    "height_px": 45.0,
+    "bbox": [
+      1611,
+      3142,
+      1743,
+      3187
+    ],
+    "text": "Jiglhgra"
+  },
+  {
+    "line_number": 94,
+    "confidence": 0.5,
+    "height_px": 60.0,
+    "bbox": [
+      1138,
+      3149,
+      1278,
+      3209
+    ],
+    "text": "xm"
+  },
+  {
+    "line_number": 95,
+    "confidence": 0.41,
+    "height_px": 48.0,
+    "bbox": [
+      1373,
+      3152,
+      1497,
+      3200
+    ],
+    "text": "CSUTA"
+  },
+  {
+    "line_number": 96,
+    "confidence": 0.99,
+    "height_px": 27.0,
+    "bbox": [
+      906,
+      3200,
+      1035,
+      3227
+    ],
+    "text": "RED CHILLI"
+  },
+  {
+    "line_number": 97,
+    "confidence": 1.0,
+    "height_px": 32.0,
+    "bbox": [
+      1125,
+      3217,
+      1284,
+      3249
+    ],
+    "text": "DELHI CHAAT"
+  },
+  {
+    "line_number": 98,
+    "confidence": 1.0,
+    "height_px": 32.0,
+    "bbox": [
+      1379,
+      3213,
+      1490,
+      3245
+    ],
+    "text": "SAMOSA"
+  },
+  {
+    "line_number": 99,
+    "confidence": 1.0,
+    "height_px": 34.0,
+    "bbox": [
+      1612,
+      3207,
+      1745,
+      3241
+    ],
+    "text": "BHELPURI"
+  },
+  {
+    "line_number": 100,
+    "confidence": 1.0,
+    "height_px": 24.0,
+    "bbox": [
+      924,
+      3222,
+      1015,
+      3246
+    ],
+    "text": "GARLIC"
+  },
+  {
+    "line_number": 101,
+    "confidence": 0.34,
+    "height_px": 18.0,
+    "bbox": [
+      1162,
+      3270,
+      1243,
+      3288
+    ],
+    "text": "t"
+  },
+  {
+    "line_number": 102,
+    "confidence": 0.58,
+    "height_px": 18.0,
+    "bbox": [
+      1395,
+      3270,
+      1460,
+      3288
+    ],
+    "text": "cmulmi"
+  },
+  {
+    "line_number": 103,
+    "confidence": 0.53,
+    "height_px": 53.0,
+    "bbox": [
+      603,
+      3439,
+      683,
+      3492
+    ],
+    "text": "6"
+  }
+]

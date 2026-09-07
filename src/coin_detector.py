@@ -36,7 +36,16 @@ def detect_coin(image_input, dp=1.0, minDist=100, param1=50, param2=30, minRadiu
     except Exception as e:
         return CoinDetectionResult(False, None, 0.0, 0.0, 0.0, None, str(e))
         
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    max_dim = 1600
+    h, w = img.shape[:2]
+    scale = max_dim / float(max(h, w)) if max(h, w) > max_dim else 1.0
+
+    if scale < 1.0:
+        working_img = cv2.resize(img, (int(w * scale), int(h * scale)))
+    else:
+        working_img = img
+
+    gray = cv2.cvtColor(working_img, cv2.COLOR_BGR2GRAY)
     
     # CLAHE
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
@@ -45,6 +54,10 @@ def detect_coin(image_input, dp=1.0, minDist=100, param1=50, param2=30, minRadiu
     # Blurring
     blurred = cv2.medianBlur(cl_gray, 5)
     blurred = cv2.GaussianBlur(blurred, (5, 5), 0)
+
+    min_r = max(10, int(minRadius * scale))
+    max_r = max(min_r + 10, int(maxRadius * scale))
+    min_d = max(20, int(minDist * scale))
     
     # Multi-pass HoughCircles
     best_circles = None
@@ -53,11 +66,11 @@ def detect_coin(image_input, dp=1.0, minDist=100, param1=50, param2=30, minRadiu
             blurred, 
             cv2.HOUGH_GRADIENT, 
             dp=dp, 
-            minDist=minDist, 
+            minDist=min_d, 
             param1=param1, 
             param2=p2, 
-            minRadius=minRadius, 
-            maxRadius=maxRadius
+            minRadius=min_r, 
+            maxRadius=max_r
         )
         if circles is not None:
             best_circles = circles[0]
@@ -87,7 +100,7 @@ def detect_coin(image_input, dp=1.0, minDist=100, param1=50, param2=30, minRadiu
         
         if score > best_score:
             best_score = score
-            best_candidate = (int(x), int(y), r)
+            best_candidate = (int(x / scale), int(y / scale), float(r / scale))
             
     if best_candidate is None or best_score < 0.5:
         return CoinDetectionResult(False, None, 0.0, 0.0, 0.0, img, "No valid coin candidates found.")

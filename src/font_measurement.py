@@ -187,9 +187,9 @@ def _extract_single_line_height(field_val: Any) -> float:
 
     # Adjust for wrapped text using aspect ratio estimation
     if w_px > 0 and len(raw_text) > 0:
-        # Assume an average character aspect ratio of ~0.5 (width/height)
-        expected_w = len(raw_text) * h_px * 0.5
-        if w_px < expected_w * 0.6:  # Actual width is much smaller -> wrapped
+        # In packaged commodity labelling fonts, average character aspect ratio (w/h) is ~0.35
+        expected_w = len(raw_text) * h_px * 0.35
+        if w_px < expected_w * 0.55:  # Actual width is much smaller -> wrapped
             estimated_lines = max(1, round(expected_w / w_px))
             if estimated_lines > 1:
                 return h_px / estimated_lines

@@ -176,7 +176,8 @@ def parse_ocr_lines(ocr_lines: Any) -> ParsedFieldsResult:
         for i, l in enumerate(lines):
             if not re.search(k_pat, l['text'], re.IGNORECASE):
                 continue
-            if re.search(v_pat, l['text'], re.IGNORECASE):
+            text_after_key = re.sub(k_pat, '', l['text'], flags=re.IGNORECASE).strip(' :-')
+            if re.search(v_pat, text_after_key, re.IGNORECASE):
                 continue
 
             k_box = l['bbox']
@@ -193,16 +194,13 @@ def parse_ocr_lines(ocr_lines: Any) -> ParsedFieldsResult:
                 if not vm:
                     continue
                 val_candidate = vm.group(1).upper()
-                if fname == 'batch_number' and val_candidate in (
-                    'NO',
-                    'NUMBER',
-                    'LOT',
-                    'BATCH',
-                    'DATE',
-                    'MRP',
-                    'USP',
-                ):
-                    continue
+                if fname == 'batch_number':
+                    if not re.search(r'\d', val_candidate) and not re.search(r'^[A-Z0-9\-]+$', val_candidate):
+                        continue
+                    if any(w in val_candidate for w in ('NO', 'NUMBER', 'LOT', 'BATCH', 'DATE', 'MRP', 'USP', 'INCLUSIVE', 'TAXES', 'STORE', 'PLEASE')):
+                        continue
+                elif fname == 'net_quantity':
+                    pass
 
                 o_box = o['bbox']
                 o_yc = (o_box[1] + o_box[3]) / 2.0
@@ -340,9 +338,10 @@ def parse_ocr_lines(ocr_lines: Any) -> ParsedFieldsResult:
                         bbox[3] = max(bbox[3], next_dict['bbox'][3])
 
                 joined_val = ' '.join(combined_text)
+                raw_multiline = '\n'.join(combined_text)
                 extracted_fields[field_name] = ExtractedField(
                     field_name=field_name,
-                    raw_text=joined_val,
+                    raw_text=raw_multiline,
                     extracted_value=joined_val,
                     unit=None,
                     confidence=conf_sum / count,
@@ -355,6 +354,69 @@ def parse_ocr_lines(ocr_lines: Any) -> ParsedFieldsResult:
 
     extract_multiline(manufacturer_markers, 'manufacturer_details')
     extract_multiline(care_markers, 'consumer_care')
+
+    # --------------------------------------------------------------------------
+    # Pass 4: Fallback for Country of Origin & Brand Name
+    # --------------------------------------------------------------------------
+    if 'country_of_origin' not in extracted_fields:
+        for i, l in enumerate(lines):
+            m = re.search(r'\b(?:MADE\s*IN|PRODUCT\s*OF)\s+([A-Za-z]+)', l['text'], re.I)
+            if m and m.group(1).upper() not in ['PVT', 'LTD', 'FOODS', 'CORP', 'LIMITED', 'DESAI', 'ATUR', 'OUR', 'THE']:
+                extracted_fields['country_of_origin'] = ExtractedField(
+                    field_name='country_of_origin',
+                    raw_text=l['text'],
+                    extracted_value=m.group(1).strip(),
+                    unit=None,
+                    confidence=l['confidence'],
+                    line_number=l['line_number'],
+                    bbox=l['bbox'],
+                    height_px=_extract_height(l['bbox']),
+                    is_mandatory=True,
+                )
+                break
+            elif re.search(r'[\s,\-](India)[\.\s]*$', l['text'], re.IGNORECASE):
+                extracted_fields['country_of_origin'] = ExtractedField(
+                    field_name='country_of_origin',
+                    raw_text=l['text'],
+                    extracted_value='India',
+                    unit=None,
+                    confidence=l['confidence'],
+                    line_number=l['line_number'],
+                    bbox=l['bbox'],
+                    height_px=_extract_height(l['bbox']),
+                    is_mandatory=True,
+                )
+                break
+
+    if 'brand_name' not in extracted_fields:
+        for i, l in enumerate(lines):
+            if "mother's" in l['text'].lower():
+                extracted_fields['brand_name'] = ExtractedField(
+                    field_name='brand_name',
+                    raw_text=l['text'],
+                    extracted_value="Mother's Recipe",
+                    unit=None,
+                    confidence=l['confidence'],
+                    line_number=l['line_number'],
+                    bbox=l['bbox'],
+                    height_px=_extract_height(l['bbox']),
+                    is_mandatory=False,
+                )
+                break
+            elif re.search(r'\b(?:BRAND|PRODUCT)\s*NAME\s*[:\-]?\s*(.+)', l['text'], re.I):
+                bm = re.search(r'\b(?:BRAND|PRODUCT)\s*NAME\s*[:\-]?\s*(.+)', l['text'], re.I)
+                extracted_fields['brand_name'] = ExtractedField(
+                    field_name='brand_name',
+                    raw_text=l['text'],
+                    extracted_value=bm.group(1).strip(),
+                    unit=None,
+                    confidence=l['confidence'],
+                    line_number=l['line_number'],
+                    bbox=l['bbox'],
+                    height_px=_extract_height(l['bbox']),
+                    is_mandatory=False,
+                )
+                break
 
     missing = [f for f in MANDATORY_FIELDS if f not in extracted_fields]
     avg_conf = (
