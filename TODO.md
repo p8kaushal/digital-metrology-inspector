@@ -37,7 +37,7 @@ This file serves as the dedicated progress tracker for all tasks across Phase 1,
   - *Completed:* 2026-09-07
   - *Verification Note:* Re-verified end-to-end on Mother's Recipe Tamarind Date Chutney (`data/scans_cache/front_IMG_2445.jpg`, `data/scans_cache/back_IMG_2445.jpg`) yielding 106 OCR lines with dot-matrix pre-processing.
 
-- [x] **Task 9: Field Structuring & Parsing**
+- [~] **Task 9: Field Structuring & Parsing**
   - *Details:* Regex/keyword proximity matching into structured fields (MRP, Net Qty, Manufacturer, Mfg Date, Batch No, Consumer Care, Country of Origin) with adjacent and stacked packaging back-panel parsing.
   - *Completed:* 2026-09-07
   - *Verification Note:* Enhanced regex & proximity matching resolved batch number candidate self-exclusion (`B2605 14`), manufacturer address parsing (`Desai Foods Pvt. Ltd.`), and country fallback (`India`). Achieved 100.0% completeness score (9/9 statutory fields declared, zero missing).

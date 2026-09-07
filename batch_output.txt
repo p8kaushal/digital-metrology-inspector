@@ -1,0 +1,32 @@
+
+================================================================================
+CONSOLIDATED BATCH INSPECTION REPORT
+================================================================================
+
+### 📊 Batch Testing Results: Packaging Samples Verification
+
+| Sample ID | Images (Front / Back) | ₹5 Coin Calibration | Present Fields (out of 9) | Missing Fields | Completeness % | Single-Line Font Heights | DOCX Report | PDF Report | Status |
+| :--- | :--- | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
+| `product_3` | `product_3_front.jpeg`<br>`product_3_back.jpeg` | 🟢 9.00 px/mm | **4/9** | 5 fields missing | **44.4%** | `1.60 mm - 2.40 mm` | ✅ Ready | ✅ Ready | ✅ PASS |
+| `product_4` | `product_4_front.jpeg`<br>`product_4_back.jpeg` | 🟢 8.41 px/mm | **2/9** | 7 fields missing | **22.2%** | `1.71 mm - 1.71 mm` | ✅ Ready | ✅ Ready | ✅ PASS |
+| `product_1` | `product_1_front.jpg`<br>`product_1_back.jpg` | 🟢 2.24 px/mm | **6/9** | 3 fields missing | **66.7%** | `0.84 mm - 2.40 mm` | ✅ Ready | ✅ Ready | ✅ PASS |
+| `product_2` | `product_2_front.jpg`<br>`prodcut_2_back.jpg` | 🟢 3.21 px/mm | **7/9** | net_quantity, country_of_origin | **77.8%** | `2.24 mm - 7.97 mm` | ✅ Ready | ✅ Ready | ✅ PASS |
+
+### 📋 Mandatory Declarations Matrix (Legal Metrology Rules, 2011)
+
+| Sample ID | mrp | net_quantity | manufacturer_details | mfg_date | expiry_date | batch_number | consumer_care | country_of_origin | unit_sale_price |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| `product_3` | 🟢 Present | 🟢 Present | 🟢 Present | 🔴 Missing | 🔴 Missing | 🔴 Missing | 🔴 Missing | 🟢 Present | 🔴 Missing |
+| `product_4` | 🔴 Missing | 🟢 Present | 🟢 Present | 🔴 Missing | 🔴 Missing | 🔴 Missing | 🔴 Missing | 🔴 Missing | 🔴 Missing |
+| `product_1` | 🟢 Present | 🟢 Present | 🟢 Present | 🟢 Present | 🔴 Missing | 🔴 Missing | 🟢 Present | 🟢 Present | 🔴 Missing |
+| `product_2` | 🟢 Present | 🔴 Missing | 🟢 Present | 🟢 Present | 🟢 Present | 🟢 Present | 🟢 Present | 🔴 Missing | 🟢 Present |
+
+### 📈 Batch Run Aggregate Statistics
+- **Total Packaging Samples Evaluated:** 4
+- **Successful Pipeline Executions:** 4/4 (100%)
+- **Reference ₹5 Coin Detection Rate:** 4/4 (100.0%)
+- **Mean Mandatory Declaration Completeness:** 52.8%
+- **Official Inspection Reports Output Directory:** `reports/batch_tests/`
+
+================================================================================
+

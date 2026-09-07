@@ -615,21 +615,28 @@ def run_batch_tests(
 
     logger.info("Discovered %d product sample directories: %s", len(subdirs), [os.path.basename(d) for d in subdirs])
 
+    import concurrent.futures
+
     results: List[ProductSampleResult] = []
-    for idx, s_dir in enumerate(subdirs, start=1):
-        s_name = os.path.basename(s_dir)
-        logger.info("\n>>> Processing [%d/%d]: %s <<<", idx, len(subdirs), s_name)
-        try:
-            res = run_pipeline_for_sample(sample_dir=s_dir, output_dir=output_abs)
-            results.append(res)
-        except Exception as exc:
-            logger.exception("Failed processing sample %s: %s", s_name, exc)
-            results.append(ProductSampleResult(
-                sample_id=s_name,
-                sample_dir=s_dir,
-                front_image_file="ERROR",
-                back_image_file="ERROR",
-                scan_id="N/A",
+    
+    with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+        future_to_sdir = {executor.submit(run_pipeline_for_sample, s_dir, output_abs): s_dir for s_dir in subdirs}
+        
+        for idx, future in enumerate(concurrent.futures.as_completed(future_to_sdir), start=1):
+            s_dir = future_to_sdir[future]
+            s_name = os.path.basename(s_dir)
+            logger.info("\n>>> Finished Processing [%d/%d]: %s <<<", idx, len(subdirs), s_name)
+            try:
+                res = future.result()
+                results.append(res)
+            except Exception as exc:
+                logger.exception("Failed processing sample %s: %s", s_name, exc)
+                results.append(ProductSampleResult(
+                    sample_id=s_name,
+                    sample_dir=s_dir,
+                    front_image_file="ERROR",
+                    back_image_file="ERROR",
+                    scan_id="N/A",
                 product_id="N/A",
                 coin_detected=False,
                 coin_detected_front=False,

@@ -75,19 +75,19 @@ def parse_ocr_lines(ocr_lines: Any) -> ParsedFieldsResult:
     # --------------------------------------------------------------------------
     single_patterns = {
         'net_quantity': (
-            r'(?:NET\s*(?:QTY|QUANTITY|WT|WEIGHT|VOL|VOLUME)|(?:NET\s*)?WEIGHT|CONTENT(?:S)?)[^\d]{0,20}?([\d\.]+)\s*(g|kg|ml|l|liter|litre|pieces|pcs|n)\b',
+            r'(?:NET\s*(?:QTY|QUANTITY|WT|WEIGHT|VOL|VOLUME)|(?:NET\s*)?WEIGHT|CONTENT(?:S)?)[^\d]{0,20}?([\d\.]+)\s*(g|kg|ml|l|liter|litre|pieces|pcs|n|unit|pair|set)\b',
             lambda m: (f'{m.group(1)} {m.group(2)}', m.group(2)),
         ),
         'mrp': (
-            r'(?:M\.?R\.?P\.?|MAXIMUM\s*RETAIL\s*PRICE|MRP|INCL\..*TAXES|INCLUSIVE.*TAXES)[^\d]{0,20}?(?:RS\.?|INR|₹)?\s*([\d\.,]{2,})',
+            r'(?:M\.?R\.?P\.?|MAXIMUM\s*RETAIL\s*PRICE|MRP|INCL\..*TAXES|INCLUSIVE.*TAXES)[^\d]{0,20}?(?:RS\.?|INR|₹)?\s*([\d][\d\.,\s]*[\d])',
             lambda m: (m.group(1).rstrip('.'), None),
         ),
         'mfg_date': (
-            r'(?:MFG\.?\s*(?:DATE)?|PKD\.?\s*(?:DATE)?|MANUFACTURED|PACKED|DATE\s*OF\s*PACKAGING)[^\d]{0,20}?([\d]{2,4}[/\-][\d]{2,4}(?:[/\-][\d]{2,4})?|[A-Za-z]+\s*[\d]{2,4})',
+            r'(?:MFG\.?\s*(?:DATE)?|PKD\.?\s*(?:DATE)?|MANUFACTURED|PACKED|DATE\s*OF\s*PACKAGING)[^\d]{0,20}?([\d]{2,4}[/\-][\d]{2,4}(?:[/\-][\d]{2,4})?|[A-Za-z]+[\s\-]*[\d]{2,4})',
             lambda m: ('14/05/25' if m.group(1) == '14/05/26' else m.group(1), None),
         ),
         'expiry_date': (
-            r'(?:EXP(?:IRY)?\.?\s*(?:DATE)?|USE\s*(?:BY|BEFORE)|BEST\s*BEFORE|EXPIRY)[^\d]{0,20}?([\d]{2,4}[/\-][\d]{2,4}(?:[/\-][\d]{2,4})?|[A-Za-z]+\s*[\d]{2,4}|[\d]+\s*(?:MONTHS|YEARS)\s*FROM\s*(?:MFG|PACKAGING|DATE))',
+            r'(?:EXP(?:IRY)?\.?\s*(?:DATE)?|USE\s*(?:BY|BEFORE)|BEST\s*BEFORE|EXPIRY)[^\d]{0,20}?([\d]{2,4}[/\-][\d]{2,4}(?:[/\-][\d]{2,4})?|[A-Za-z]+[\s\-]*[\d]{2,4}|[\d]+\s*(?:MONTHS|YEARS)\s*FROM\s*(?:MFG|PACKAGING|DATE))',
             lambda m: (m.group(1), None),
         ),
         'batch_number': (
@@ -101,6 +101,10 @@ def parse_ocr_lines(ocr_lines: Any) -> ParsedFieldsResult:
         'unit_sale_price': (
             r'(?:USP|UNIT\s*SALE\s*PRICE)[^\d]{0,15}?(?:RS\.?|INR|₹)?\s*([\d\.]+\s*(?:PER|\/)\s*(?:G|ML|KG|L|PC|N)|[^\n\r]+)',
             lambda m: (m.group(0).strip(), None),
+        ),
+        'generic_name': (
+            r'(?:GENERIC\s*NAME\s*OF\s*COMMODITY|NAME\s*OF\s*COMMODITY|PRODUCT\s*MODEL|GENERIC\s*NAME)[^\w]{0,10}([A-Za-z0-9\s]+)',
+            lambda m: (m.group(1).strip(), None),
         ),
     }
 
@@ -144,28 +148,33 @@ def parse_ocr_lines(ocr_lines: Any) -> ParsedFieldsResult:
     proximity_definitions = {
         'net_quantity': (
             r'\b(?:NET\s*(?:QTY|QUANTITY|WT|WEIGHT|VOL|VOLUME)|(?:NET\s*)?WEIGHT|CONTENT(?:S)?)\b',
-            r'^([\d\.]+)\s*(g|kg|ml|l|liter|litre|pieces|pcs|n)\b',
+            r'^([\d\.]+)\s*(g|kg|ml|l|liter|litre|pieces|pcs|n|unit|pair|set)\b',
             lambda m: (f'{m.group(1)} {m.group(2)}', m.group(2)),
         ),
         'mrp': (
-            r'\b(?:M\.?R\.?P\.?|MAXIMUM\s*RETAIL\s*PRICE|MRP|INCLUSIVE\s*OF\s*ALL\s*TAXES|INCL\..*TAXES)\b',
-            r'^(?:RS\.?|INR|₹)?\s*([\d]{1,6}\.[\d]{2})\b',
+            r'\b(?:M\.?R\.?P\.?(?:\s*\(?INCL\..*TAXES\)?)?|MAXIMUM\s*RETAIL\s*PRICE|INCLUSIVE\s*OF\s*ALL\s*TAXES|INCL\..*TAXES)\b',
+            r'^(?:RS\.?|INR|₹)?\s*([\d][\d\.,\s]*[\d])\b',
             lambda m: (m.group(1).rstrip('.'), None),
         ),
         'mfg_date': (
             r'\b(?:MFG\.?\s*(?:DATE)?|PKD\.?\s*(?:DATE)?|MANUFACTURED|PACKED|DATE\s*OF\s*PACKAGING)\b',
-            r'\b([\d]{1,2}[/\-][\d]{1,2}[/\-][\d]{2,4}|[A-Za-z]{3,}\s*[\d]{2,4}|[\d]{2}[/\-][\d]{2,4})\b',
+            r'\b([\d]{1,2}[/\-][\d]{1,2}[/\-][\d]{2,4}|[A-Za-z]{3,}[\s\-]*[\d]{2,4}|[\d]{2}[/\-][\d]{2,4})\b',
             lambda m: ('14/05/25' if m.group(1) == '14/05/26' else m.group(1), None),
         ),
         'expiry_date': (
             r'\b(?:EXP(?:IRY)?\.?\s*(?:DATE)?|USE\s*(?:BY|BEFORE)|BEST\s*BEFORE|EXPIRY)\b',
-            r'\b([\d]{1,2}[/\-][\d]{1,2}[/\-][\d]{2,4}|[A-Za-z]{3,}\s*[\d]{2,4}|[\d]{2}[/\-][\d]{2,4}|[\d]+\s*(?:MONTHS|YEARS)\s*FROM\s*(?:MFG|PACKAGING|DATE))\b',
+            r'\b([\d]{1,2}[/\-][\d]{1,2}[/\-][\d]{2,4}|[A-Za-z]{3,}[\s\-]*[\d]{2,4}|[\d]{2}[/\-][\d]{2,4}|[\d]+\s*(?:MONTHS|YEARS)\s*FROM\s*(?:MFG|PACKAGING|DATE))\b',
             lambda m: (m.group(1), None),
         ),
         'batch_number': (
             r'\b(?:BATCH|LOT)\s*(?:NO\.?|NUMBER)?\b',
             r'\b([A-Z0-9]{3,}(?:\s+[A-Z0-9]+)?)\b',
             lambda m: (m.group(1), None),
+        ),
+        'generic_name': (
+            r'\b(?:GENERIC\s*NAME\s*OF\s*COMMODITY|NAME\s*OF\s*COMMODITY|PRODUCT\s*MODEL|GENERIC\s*NAME)\b',
+            r'\b([A-Za-z0-9\s]+)\b',
+            lambda m: (m.group(1).strip(), None),
         ),
     }
 
@@ -272,6 +281,7 @@ def parse_ocr_lines(ocr_lines: Any) -> ParsedFieldsResult:
         r'MKTD\.?\s*BY',
         r'MARKETED\s*BY',
         r'IMPORTED\s*BY',
+        r'IMPORTED\s*(?:&|AND)\s*MARKETED\s*BY',
         r'MANUFACTURER',
         r'(?:A\s+QUALITY\s+)?PRODUCT\s+OF',
         r'DESAI\s+FOODS',
