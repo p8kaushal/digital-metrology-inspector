@@ -1,0 +1,9 @@
+streamlit
+opencv-python-headless
+pillow
+numpy
+paddlepaddle
+paddleocr
+python-docx
+supabase
+python-dotenv
