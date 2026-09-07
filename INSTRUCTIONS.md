@@ -92,7 +92,7 @@ After completing a task, before marking it done:
 - [x] 13. Report generation — editable Word doc (python-docx) + PDF export, listing all fields + font measurements per side
 - [x] 14. Upload generated report to Supabase Storage; save retrievable link
 - [x] 15. Manual correction UI in Streamlit — inspector reviews/edits fields before finalizing; corrections logged to Supabase
-- [ ] 16. Phase 1 test pass — validate against 5-10 real self-photographed sample products; document accuracy results
+- [x] 16. Phase 1 test pass — validate against 5-10 real self-photographed sample products; document accuracy results
 
 ### Phase 2 — Compliance Rule Engine
 

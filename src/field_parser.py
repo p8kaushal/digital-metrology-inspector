@@ -77,7 +77,7 @@ def parse_ocr_lines(ocr_lines: Any) -> ParsedFieldsResult:
         'mrp': r"(?:M\.?R\.?P\.?|MAXIMUM\s*RETAIL\s*PRICE|MRP)\s*(?:RS\.?|INR|₹)?\s*[:\-\.]?\s*(?:RS\.?|INR|₹)?\s*([\d\.,]+)",
         'net_quantity': r"(?:NET\s*(?:QTY|QUANTITY|WT|WEIGHT|VOL|VOLUME)|(?:NET\s*)?WEIGHT|CONTENT(?:S)?)\s*[:\-]?\s*([\d\.]+)\s*(g|kg|ml|l|liter|litre|pieces|pcs|n)",
         'mfg_date': r"(?:MFG\.?\s*(?:DATE)?|PKD\.?\s*(?:DATE)?|MANUFACTURED|PACKED)\s*(?:ON|DATE)?\s*[:\-]?\s*([\d]{2,4}[/\-][\d]{2,4}|[A-Za-z]+\s*[\d]{2,4})",
-        'expiry_date': r"(?:EXP(?:IRY)?\.?\s*(?:DATE)?|USE\s*BY|BEST\s*BEFORE)\s*[:\-]?\s*([\d]{2,4}[/\-][\d]{2,4}|[A-Za-z]+\s*[\d]{2,4}|[\d]+\s*(?:MONTHS|YEARS)\s*FROM\s*(?:MFG|PACKAGING|DATE))",
+        'expiry_date': r"(?:EXP(?:IRY)?\.?\s*(?:DATE)?|USE\s*(?:BY|BEFORE)|BEST\s*BEFORE)\s*[:\-]?\s*([\d]{2,4}[/\-][\d]{2,4}|[A-Za-z]+\s*[\d]{2,4}|[\d]+\s*(?:MONTHS|YEARS)\s*FROM\s*(?:MFG|PACKAGING|DATE))",
         'batch_number': r"(?:BATCH|LOT)\s*(?:NO\.?|NUMBER)?\s*[:\-]?\s*([A-Za-z0-9\-\/]+)",
         'country_of_origin': r"(?:MADE\s*IN|COUNTRY\s*OF\s*ORIGIN|PRODUCT\s*OF)\s*[:\-]?\s*([A-Za-z\s]+)",
         'unit_sale_price': r"(?:USP|UNIT\s*SALE\s*PRICE|RS\.?\s*[\d\.]+\s*(?:PER|\/)\s*(?:G|ML|KG|L|PC|N))",

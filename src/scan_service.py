@@ -137,6 +137,20 @@ def _extract_image_payload(
         content_type, ext = _get_mime_and_extension(metadata.get("format", "PNG"))
         return raw_bytes, metadata, filename, content_type
 
+    # Case 5: File path string
+    elif isinstance(img_input, str):
+        if not os.path.exists(img_input):
+            raise FileNotFoundError(f"Image path for {side} label not found: {img_input}")
+        with open(img_input, "rb") as f_in:
+            raw_bytes = f_in.read()
+        filename = os.path.basename(img_input)
+        is_valid, err_msg, pil_img, meta = validate_image_bytes(raw_bytes, filename=filename)
+        if not is_valid or pil_img is None:
+            raise ValueError(f"Invalid {side} image data from {img_input}: {err_msg}")
+        metadata = meta if meta is not None else compute_image_metadata(pil_img, raw_bytes, filename=filename)
+        content_type, ext = _get_mime_and_extension(metadata.get("format", "PNG"))
+        return raw_bytes, metadata, filename, content_type
+
     else:
         raise TypeError(
             f"Unsupported image input type for {side}: {type(img_input).__name__}."
