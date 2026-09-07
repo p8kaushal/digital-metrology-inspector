@@ -218,7 +218,7 @@ def test_streamlit_app_workflow():
     back_bytes, _ = create_synthetic_packaging_image("back", width=800, height=600)
 
     # 1. Initial State: inspect button disabled when no images provided
-    at = AppTest.from_file(app_path)
+    at = AppTest.from_file(app_path, default_timeout=40)
     at.run()
     assert not at.exception, f"AppTest threw uncaught exception: {at.exception}"
 

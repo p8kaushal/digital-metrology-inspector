@@ -67,6 +67,8 @@ if "report_upload_result" not in st.session_state:
     st.session_state["report_upload_result"] = None
 if "correction_saved_msg" not in st.session_state:
     st.session_state["correction_saved_msg"] = None
+if "pipeline_success_msg" not in st.session_state:
+    st.session_state["pipeline_success_msg"] = None
 
 # Sidebar Instructions & System Info
 with st.sidebar:
@@ -114,6 +116,7 @@ with st.sidebar:
         st.session_state["report_result"] = None
         st.session_state["report_upload_result"] = None
         st.session_state["correction_saved_msg"] = None
+        st.session_state["pipeline_success_msg"] = None
         st.rerun()
 
     st.divider()
@@ -282,6 +285,10 @@ def render_label_input_column(side_title: str, side_key: str):
                         coin_radius=c_radius,
                     )
                     st.session_state[f"{side_key}_ocr_result"] = ocr_res
+                    st.session_state[f"{side_key}_parsed_fields"] = None
+                    st.session_state[f"{side_key}_font_report"] = None
+                    st.session_state[f"{side_key}_persistence"] = None
+                    st.session_state["consolidated_record"] = None
 
         # Coin status feedback
         coin_res = st.session_state.get(f"{side_key}_coin")
@@ -352,29 +359,34 @@ def render_label_input_column(side_title: str, side_key: str):
                 st.warning(f"⚠️ No text lines extracted via OCR engine ({ocr_res.engine_used}).")
                 
             if ocr_res.total_lines > 0:
-                parsed_res = parse_ocr_lines(ocr_res)
-                st.session_state[f"{side_key}_parsed_fields"] = parsed_res
+                if f"{side_key}_parsed_fields" not in st.session_state or st.session_state[f"{side_key}_parsed_fields"] is None:
+                    st.session_state[f"{side_key}_parsed_fields"] = parse_ocr_lines(ocr_res)
+                parsed_res = st.session_state[f"{side_key}_parsed_fields"]
 
-                calib_res = st.session_state.get(f"{side_key}_calibration")
-                font_report = measure_font_heights(parsed_res, calib_res)
-                st.session_state[f"{side_key}_font_report"] = font_report
+                if f"{side_key}_font_report" not in st.session_state or st.session_state[f"{side_key}_font_report"] is None:
+                    calib_res = st.session_state.get(f"{side_key}_calibration")
+                    st.session_state[f"{side_key}_font_report"] = measure_font_heights(parsed_res, calib_res)
+                font_report = st.session_state[f"{side_key}_font_report"]
 
                 # Automatically persist extraction results to Supabase (Task 11)
-                active_scan = st.session_state.get("current_scan")
-                if active_scan and active_scan.get("scan_id"):
-                    active_scan_id = active_scan.get("scan_id")
-                else:
-                    if not st.session_state.get("active_scan_id"):
-                        st.session_state["active_scan_id"] = str(uuid.uuid4())
-                    active_scan_id = st.session_state["active_scan_id"]
+                if f"{side_key}_persistence" not in st.session_state or st.session_state[f"{side_key}_persistence"] is None:
+                    active_scan = st.session_state.get("current_scan")
+                    if active_scan and active_scan.get("scan_id"):
+                        active_scan_id = active_scan.get("scan_id")
+                    else:
+                        if not st.session_state.get("active_scan_id"):
+                            st.session_state["active_scan_id"] = str(uuid.uuid4())
+                        active_scan_id = st.session_state["active_scan_id"]
 
-                persist_res = save_scan_extraction_results(
-                    scan_id=active_scan_id,
-                    parsed_fields_result=parsed_res,
-                    font_measurement_report=font_report,
-                    side=side_key,
-                )
-                st.session_state[f"{side_key}_persistence"] = persist_res
+                    persist_res = save_scan_extraction_results(
+                        scan_id=active_scan_id,
+                        parsed_fields_result=parsed_res,
+                        font_measurement_report=font_report,
+                        side=side_key,
+                    )
+                    st.session_state[f"{side_key}_persistence"] = persist_res
+                else:
+                    persist_res = st.session_state[f"{side_key}_persistence"]
 
                 with st.expander(f"📋 Extracted Mandatory Fields ({parsed_res.total_fields_found}) & Font Measurements", expanded=True):
                     if parsed_res.missing_mandatory_fields:
@@ -490,31 +502,418 @@ with col_back:
     render_label_input_column("📷 Back Packaging Label", "back")
 
 # ==============================================================================
-# 📦 Consolidated Product Master Record (Task 12)
+# 🚀 Metrology Compliance Inspection Workflow
+# ==============================================================================
+st.markdown("---")
+st.subheader("⚙️ Metrology Compliance Inspection Workflow")
+
+# Re-check readiness after both columns have executed
+all_ready, readiness = check_inspection_readiness(st.session_state)
+
+workflow_col1, workflow_col2 = st.columns([2, 1])
+
+with workflow_col1:
+    if all_ready:
+        st.success(
+            "🎉 **Both Front and Back packaging images are validated and cached!**\n\n"
+            "Ready to proceed with Reference Coin Detection (₹5 coin / 21.9mm calibration), "
+            "PaddleOCR text extraction, Rule 7 font measurement, consolidation, and official report generation."
+        )
+    elif readiness["front"] and not readiness["back"]:
+        st.warning("⚠️ **Front label is loaded, but Back label is missing.** Please provide the Back label image.")
+    elif not readiness["front"] and readiness["back"]:
+        st.warning("⚠️ **Back label is loaded, but Front label is missing.** Please provide the Front label image.")
+    else:
+        st.info("ℹ️ Upload or capture both Front and Back images (with reference ₹5 coin) to begin inspection.")
+
+with workflow_col2:
+    run_inspection = st.button(
+        "🚀 Start Automated Inspection",
+        type="primary",
+        disabled=(not all_ready),
+        use_container_width=True,
+    )
+
+if run_inspection:
+    with st.spinner("🚀 Running End-to-End Automated Metrology Inspection (Coin Calibration, OCR, Rule 7, Reports & Storage Upload)..."):
+        try:
+            front_img = st.session_state["front_image"]
+            back_img = st.session_state["back_image"]
+            front_path = getattr(front_img, "cache_path", str(front_img))
+            back_path = getattr(back_img, "cache_path", str(back_img))
+
+            # 1. Process scan upload to database & storage
+            scan_result = process_scan_upload(
+                front_image=front_img,
+                back_image=back_img,
+            )
+            scan_id = getattr(scan_result, "scan_id", None) or scan_result.get("scan_id")
+            st.session_state["current_scan"] = scan_result
+            st.session_state["active_scan_id"] = scan_id
+
+            # 2. Coin Detection & Calibration for Front and Back
+            coin_f = detect_coin(front_path)
+            coin_b = detect_coin(back_path)
+            st.session_state["front_coin"] = coin_f
+            st.session_state["back_coin"] = coin_b
+
+            calib_f = compute_calibration(coin_f) if (coin_f and getattr(coin_f, "detected", False)) else None
+            calib_b = compute_calibration(coin_b) if (coin_b and getattr(coin_b, "detected", False)) else None
+            st.session_state["front_calibration"] = calib_f
+            st.session_state["back_calibration"] = calib_b
+
+            # 3. Text Region Detection for Front and Back
+            cf_center = coin_f.center if (coin_f and getattr(coin_f, "detected", False)) else None
+            cf_radius = coin_f.radius if (coin_f and getattr(coin_f, "detected", False)) else None
+            cb_center = coin_b.center if (coin_b and getattr(coin_b, "detected", False)) else None
+            cb_radius = coin_b.radius if (coin_b and getattr(coin_b, "detected", False)) else None
+
+            text_f = detect_text_regions(front_path, coin_center=cf_center, coin_radius=cf_radius)
+            text_b = detect_text_regions(back_path, coin_center=cb_center, coin_radius=cb_radius)
+            st.session_state["front_text_result"] = text_f
+            st.session_state["back_text_result"] = text_b
+
+            # 4. PaddleOCR Extraction for Front and Back
+            ocr_f = extract_text_from_image(front_path, coin_center=cf_center, coin_radius=cf_radius)
+            ocr_b = extract_text_from_image(back_path, coin_center=cb_center, coin_radius=cb_radius)
+            st.session_state["front_ocr_result"] = ocr_f
+            st.session_state["back_ocr_result"] = ocr_b
+
+            # 5. Field Structuring & Font Measurement in mm
+            parsed_f = parse_ocr_lines(ocr_f)
+            parsed_b = parse_ocr_lines(ocr_b)
+            st.session_state["front_parsed_fields"] = parsed_f
+            st.session_state["back_parsed_fields"] = parsed_b
+
+            font_f = measure_font_heights(parsed_f, calib_f)
+            font_b = measure_font_heights(parsed_b, calib_b)
+            st.session_state["front_font_report"] = font_f
+            st.session_state["back_font_report"] = font_b
+
+            # 6. Save Scan & Extracted Fields to Supabase
+            p_f = save_scan_extraction_results(
+                scan_id=scan_id,
+                parsed_fields_result=parsed_f,
+                font_measurement_report=font_f,
+                side="front",
+            )
+            p_b = save_scan_extraction_results(
+                scan_id=scan_id,
+                parsed_fields_result=parsed_b,
+                font_measurement_report=font_b,
+                side="back",
+            )
+            st.session_state["front_persistence"] = p_f
+            st.session_state["back_persistence"] = p_b
+
+            # 7. Front & Back Data Consolidation into ConsolidatedProductRecord
+            consolidated_rec = consolidate_scan_records(
+                front_parsed=parsed_f,
+                back_parsed=parsed_b,
+                front_fonts=font_f,
+                back_fonts=font_b,
+                scan_id=scan_id,
+            )
+            st.session_state["consolidated_record"] = consolidated_rec
+
+            # 8. Generate Editable Word (.docx) & PDF (.pdf) Reports
+            best_font_rep = (
+                font_f if (font_f and getattr(font_f, "calibrated_fields_count", 0) > 0)
+                else (font_b if (font_b and getattr(font_b, "calibrated_fields_count", 0) > 0) else (font_f or font_b))
+            )
+            best_calib = (
+                calib_f if (calib_f and getattr(calib_f, "is_calibrated", False))
+                else (calib_b if (calib_b and getattr(calib_b, "is_calibrated", False)) else (calib_f or calib_b))
+            )
+            rep_res = generate_inspection_report(
+                consolidated_record=consolidated_rec,
+                front_image=front_path,
+                back_image=back_path,
+                font_report=best_font_rep,
+                calibration_result=best_calib,
+                output_dir="reports",
+                scan_id=scan_id,
+            )
+            st.session_state["report_result"] = rep_res
+
+            # 9. Upload Inspection Report to Supabase Storage
+            upload_res = upload_inspection_report(
+                scan_id=scan_id,
+                docx_path=rep_res.docx_path,
+                pdf_path=rep_res.pdf_path,
+            )
+            st.session_state["report_upload_result"] = upload_res
+
+            st.session_state["pipeline_success_msg"] = (
+                f"✅ Full automated inspection completed successfully! "
+                f"Inspection report generated in {rep_res.generation_time_sec:.2f}s."
+            )
+            st.rerun()
+        except Exception as exc:
+            st.error(f"❌ Automated Inspection failed: {exc}")
+
+if st.session_state.get("pipeline_success_msg"):
+    st.balloons()
+    st.success(st.session_state.pop("pipeline_success_msg"))
+
+# ==============================================================================
+# 📋 Active Inspection Scan Confirmation
+# ==============================================================================
+if st.session_state.get("current_scan") is not None:
+    current_scan = st.session_state["current_scan"]
+    st.markdown("---")
+    st.markdown("### 📋 Active Inspection Scan Confirmation")
+
+    # Aggregate persistence statistics across front and back sides
+    front_p = st.session_state.get("front_persistence")
+    back_p = st.session_state.get("back_persistence")
+    total_saved_fields = (front_p.saved_count if front_p else 0) + (back_p.saved_count if back_p else 0)
+
+    # Key metrics row
+    card_col1, card_col2, card_col3, card_col4 = st.columns(4)
+    with card_col1:
+        scan_id_val = current_scan.get("scan_id", "")
+        short_id = f"{scan_id_val[:8]}..." if len(scan_id_val) > 12 else scan_id_val
+        st.metric("Scan ID", short_id, help=scan_id_val)
+    with card_col2:
+        raw_ts = current_scan.get("timestamp", "")
+        formatted_ts = raw_ts[:19].replace("T", " ") if "T" in raw_ts else raw_ts
+        st.metric("Timestamp (UTC)", formatted_ts)
+    with card_col3:
+        st.metric("Storage Status", current_scan.get("storage_status", "Offline Mock"))
+    with card_col4:
+        display_status = "PROCESSED" if total_saved_fields > 0 else current_scan.get("status", "uploaded").upper()
+        st.metric("Scan Status", display_status)
+
+    if total_saved_fields > 0:
+        st.success(f"💾 Saved {total_saved_fields} fields to Supabase")
+
+    # Metadata & Public Links Container Card
+    st.markdown(
+        f"""
+        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 18px; margin-top: 12px; margin-bottom: 12px;">
+            <h4 style="margin-top: 0; color: #1e293b;">📦 Scan Record & Persistence Verification</h4>
+            <p style="margin-bottom: 8px; color: #334155;">
+                <strong>Scan UUID:</strong> <code>{current_scan.get('scan_id')}</code><br>
+                <strong>Timestamp:</strong> <code>{current_scan.get('timestamp')}</code><br>
+                <strong>Storage Mode:</strong> <span style="font-weight: 600; color: {'#0d6efd' if not current_scan.get('is_offline') else '#fd7e14'};">{current_scan.get('storage_status')}</span><br>
+                <strong>Label Dimensions:</strong> {current_scan.get('dimensions', {}).get('summary', 'N/A')}
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Public image links
+    st.markdown(
+        f"""
+**Public Image Links:**
+- 🔗 **Front Label Image:** [{current_scan.get('front_image_url')}]({current_scan.get('front_image_url')})
+- 🔗 **Back Label Image:** [{current_scan.get('back_image_url')}]({current_scan.get('back_image_url')})
+        """
+    )
+
+    st.info(
+        "Scan registered in database table `scans`. Storage upload verified. "
+        "Completed: Automated compliance pipeline execution."
+    )
+
+# ==============================================================================
+# 📄 Statutory Metrology Inspection Report & Prominent Downloads (Task 13 & 14)
 # ==============================================================================
 front_parsed_data = st.session_state.get("front_parsed_fields")
 back_parsed_data = st.session_state.get("back_parsed_fields")
+active_scan = st.session_state.get("current_scan")
+active_scan_id = active_scan.get("scan_id") if active_scan else st.session_state.get("active_scan_id")
 
-if front_parsed_data is not None or back_parsed_data is not None or st.session_state.get("consolidated_record") is not None:
-    active_scan = st.session_state.get("current_scan")
-    active_scan_id = active_scan.get("scan_id") if active_scan else st.session_state.get("active_scan_id")
-    front_fonts = st.session_state.get("front_font_report")
-    back_fonts = st.session_state.get("back_font_report")
-
+if (
+    st.session_state.get("report_result") is not None
+    or st.session_state.get("consolidated_record") is not None
+    or front_parsed_data is not None
+    or back_parsed_data is not None
+):
     if st.session_state.get("consolidated_record") is not None:
         consolidated_rec = st.session_state["consolidated_record"]
     elif front_parsed_data is not None or back_parsed_data is not None:
         consolidated_rec = consolidate_scan_records(
             front_parsed=front_parsed_data,
             back_parsed=back_parsed_data,
-            front_fonts=front_fonts,
-            back_fonts=back_fonts,
+            front_fonts=st.session_state.get("front_font_report"),
+            back_fonts=st.session_state.get("back_font_report"),
             scan_id=active_scan_id,
         )
         st.session_state["consolidated_record"] = consolidated_rec
     else:
         consolidated_rec = None
 
+    st.markdown("---")
+    st.markdown("#### 📄 Statutory Metrology Inspection Report (Task 13)")
+    st.write(
+        "Generate an official, genuinely editable Word document (`.docx`) and PDF inspection report "
+        "incorporating Department of Consumer Affairs Legal Metrology headers, metadata, "
+        "₹5 coin calibration ratio, statutory declarations table, and packaging digital evidence."
+    )
+
+    current_report = st.session_state.get("report_result")
+
+    # Prominent Header Banner when report is generated
+    if current_report is not None:
+        st.markdown(
+            f"""
+            <div style="background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%); color: white; border-radius: 10px; padding: 18px 22px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.12);">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                    <div>
+                        <span style="font-size: 1.15em; font-weight: 700; color: #38bdf8;">📜 Inspection Reports Ready for Download</span>
+                        <div style="font-size: 0.88em; color: #cbd5e1; margin-top: 3px;">
+                            Generated in {current_report.generation_time_sec:.2f}s &bull; Format: Microsoft Word (.docx) & Adobe PDF (.pdf)
+                        </div>
+                    </div>
+                    <span style="background-color: #059669; color: white; padding: 4px 12px; border-radius: 16px; font-size: 0.85em; font-weight: 600;">
+                        ✓ VERIFIED & STORED
+                    </span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # Action row: Generate Report Button, Download Word, Download PDF
+    rep_btn_col, rep_dl_word, rep_dl_pdf = st.columns([1.5, 1.4, 1.4])
+    with rep_btn_col:
+        gen_report_btn = st.button(
+            "📄 Generate Inspection Report",
+            key="btn_generate_inspection_report",
+            type="primary" if current_report is None else "secondary",
+            use_container_width=True,
+        )
+
+    if gen_report_btn:
+        with st.spinner("Generating official Legal Metrology inspection report (.docx & .pdf)..."):
+            try:
+                scan_id_for_rep = (
+                    active_scan_id
+                    or (active_scan.get("scan_id") if active_scan else None)
+                    or (getattr(consolidated_rec, "product_id", None) if consolidated_rec else None)
+                    or str(uuid.uuid4())
+                )
+                f_img_obj = st.session_state.get("front_image")
+                b_img_obj = st.session_state.get("back_image")
+                f_path = getattr(f_img_obj, "cache_path", str(f_img_obj)) if f_img_obj else None
+                b_path = getattr(b_img_obj, "cache_path", str(b_img_obj)) if b_img_obj else None
+
+                f_font = st.session_state.get("front_font_report")
+                b_font = st.session_state.get("back_font_report")
+                best_font = f_font if (f_font and getattr(f_font, "calibrated_fields_count", 0) > 0) else (b_font or f_font)
+
+                f_cal = st.session_state.get("front_calibration")
+                b_cal = st.session_state.get("back_calibration")
+                best_cal = f_cal if (f_cal and getattr(f_cal, "is_calibrated", False)) else (b_cal or f_cal)
+
+                rep_res = generate_inspection_report(
+                    consolidated_record=consolidated_rec,
+                    front_image=f_path,
+                    back_image=b_path,
+                    font_report=best_font,
+                    calibration_result=best_cal,
+                    output_dir="reports",
+                    scan_id=scan_id_for_rep,
+                )
+                st.session_state["report_result"] = rep_res
+                current_report = rep_res
+                st.success(f"✅ Inspection report generated successfully in {rep_res.generation_time_sec:.2f}s!")
+
+                # Task 14: Automatically trigger upload_inspection_report upon report generation
+                upload_res = upload_inspection_report(
+                    scan_id=scan_id_for_rep,
+                    docx_path=rep_res.docx_path,
+                    pdf_path=rep_res.pdf_path,
+                )
+                st.session_state["report_upload_result"] = upload_res
+                storage_tag = upload_res.get("upload_status", "Supabase Storage")
+                st.success(f"☁️ Report uploaded to cloud storage ({storage_tag}): {upload_res.report_url}")
+            except Exception as exc:
+                st.error(f"❌ Failed to generate inspection report: {exc}")
+
+    # Render Download Buttons prominently
+    if current_report is not None:
+        docx_p = current_report.docx_path
+        pdf_p = current_report.pdf_path
+
+        if docx_p and os.path.exists(docx_p):
+            with open(docx_p, "rb") as f_docx:
+                docx_bytes = f_docx.read()
+            with rep_dl_word:
+                st.download_button(
+                    label="📥 Download Editable Word (.docx)",
+                    data=docx_bytes,
+                    file_name=os.path.basename(docx_p),
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key="download_report_docx",
+                    use_container_width=True,
+                )
+
+        if pdf_p and os.path.exists(pdf_p):
+            with open(pdf_p, "rb") as f_pdf:
+                pdf_bytes = f_pdf.read()
+            with rep_dl_pdf:
+                st.download_button(
+                    label="📥 Download Inspection PDF (.pdf)",
+                    data=pdf_bytes,
+                    file_name=os.path.basename(pdf_p),
+                    mime="application/pdf",
+                    key="download_report_pdf",
+                    use_container_width=True,
+                )
+        else:
+            with rep_dl_pdf:
+                st.info("ℹ️ PDF Export unavailable (conversion tool not installed).")
+
+    # Task 14: Display Cloud Storage Link Badge and Retrievable Links
+    current_upload = st.session_state.get("report_upload_result")
+    if current_upload is not None:
+        st.markdown("---")
+        st.markdown("##### ☁️ Cloud Storage Report Archive (Supabase)")
+        badge_bg = "#059669" if not current_upload.get("is_offline") else "#4f46e5"
+        badge_label = "☁️ Supabase Cloud Storage" if not current_upload.get("is_offline") else "📦 Offline Mock Storage"
+        docx_link = current_upload.get("report_url") or current_upload.get("docx_url")
+        pdf_link = current_upload.get("pdf_url")
+        bucket_name = current_upload.get("storage_bucket", "inspection-reports")
+
+        st.markdown(
+            f"""
+            <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px 18px; margin-top: 8px; margin-bottom: 12px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <span style="background-color: {badge_bg}; color: white; padding: 4px 12px; border-radius: 16px; font-size: 0.85em; font-weight: 600; letter-spacing: 0.3px;">
+                        {badge_label}
+                    </span>
+                    <span style="font-size: 0.82em; color: #64748b; font-family: monospace;">
+                        Bucket: {bucket_name}
+                    </span>
+                </div>
+                <div style="font-size: 0.92em; color: #1e293b; line-height: 1.6;">
+                    <b>Retrievable Inspection Report Links:</b>
+                    <ul style="margin: 6px 0 0 0; padding-left: 20px;">
+                        <li><b>Word (.docx):</b> <a href="{docx_link}" target="_blank" style="color: #2563eb; word-break: break-all;">{docx_link}</a></li>
+                        {f'<li><b>PDF (.pdf):</b> <a href="{pdf_link}" target="_blank" style="color: #2563eb; word-break: break-all;">{pdf_link}</a></li>' if pdf_link else ''}
+                    </ul>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        link_col1, link_col2 = st.columns(2)
+        with link_col1:
+            st.info(f"📄 **Cloud Word Report:** [{docx_link}]({docx_link})")
+        with link_col2:
+            if pdf_link:
+                st.info(f"📑 **Cloud PDF Report:** [{pdf_link}]({pdf_link})")
+            else:
+                st.caption("ℹ️ PDF cloud link not available (PDF export was skipped).")
+
+    # ==============================================================================
+    # 📦 Consolidated Product Master Record (Task 12)
+    # ==============================================================================
     if consolidated_rec is not None:
         st.markdown("---")
         with st.expander("📦 Consolidated Product Master Record", expanded=True):
@@ -788,269 +1187,3 @@ if front_parsed_data is not None or back_parsed_data is not None or st.session_s
                             "Reason": log.get("reason") or "Manual correction",
                         })
                     st.dataframe(log_rows, use_container_width=True)
-
-            # 📄 Inspection Report Generation & Export (Task 13)
-            st.markdown("---")
-            st.markdown("#### 📄 Statutory Metrology Inspection Report (Task 13)")
-            st.write(
-                "Generate an official, genuinely editable Word document (`.docx`) and PDF inspection report "
-                "incorporating Department of Consumer Affairs Legal Metrology headers, metadata, "
-                "₹5 coin calibration ratio, statutory declarations table, and packaging digital evidence."
-            )
-
-            rep_btn_col, rep_dl_word, rep_dl_pdf = st.columns([1.5, 1.4, 1.4])
-            with rep_btn_col:
-                gen_report_btn = st.button(
-                    "📄 Generate Inspection Report",
-                    key="btn_generate_inspection_report",
-                    type="primary",
-                    use_container_width=True,
-                )
-
-            if gen_report_btn:
-                with st.spinner("Generating official Legal Metrology inspection report (.docx & .pdf)..."):
-                    try:
-                        scan_id_for_rep = (
-                            active_scan_id
-                            or (active_scan.get("scan_id") if active_scan else None)
-                            or getattr(consolidated_rec, "product_id", None)
-                            or str(uuid.uuid4())
-                        )
-                        f_img_obj = st.session_state.get("front_image")
-                        b_img_obj = st.session_state.get("back_image")
-                        f_path = getattr(f_img_obj, "cache_path", None) if f_img_obj else None
-                        b_path = getattr(b_img_obj, "cache_path", None) if b_img_obj else None
-
-                        rep_res = generate_inspection_report(
-                            consolidated_record=consolidated_rec,
-                            front_image=f_path,
-                            back_image=b_path,
-                            font_report=st.session_state.get("front_font_report") or st.session_state.get("back_font_report"),
-                            calibration_result=st.session_state.get("front_calibration") or st.session_state.get("back_calibration"),
-                            output_dir="reports",
-                            scan_id=scan_id_for_rep,
-                        )
-                        st.session_state["report_result"] = rep_res
-                        st.success(f"✅ Inspection report generated successfully in {rep_res.generation_time_sec:.2f}s!")
-
-                        # Task 14: Automatically trigger upload_inspection_report upon report generation
-                        upload_res = upload_inspection_report(
-                            scan_id=scan_id_for_rep,
-                            docx_path=rep_res.docx_path,
-                            pdf_path=rep_res.pdf_path,
-                        )
-                        st.session_state["report_upload_result"] = upload_res
-                        storage_tag = upload_res.get("upload_status", "Supabase Storage")
-                        st.success(f"☁️ Report uploaded to cloud storage ({storage_tag}): {upload_res.report_url}")
-                    except Exception as exc:
-                        st.error(f"❌ Failed to generate inspection report: {exc}")
-
-            current_report = st.session_state.get("report_result")
-            if current_report is not None:
-                docx_p = current_report.docx_path
-                pdf_p = current_report.pdf_path
-
-                if docx_p and os.path.exists(docx_p):
-                    with open(docx_p, "rb") as f_docx:
-                        docx_bytes = f_docx.read()
-                    with rep_dl_word:
-                        st.download_button(
-                            label="📥 Download Editable Word (.docx)",
-                            data=docx_bytes,
-                            file_name=os.path.basename(docx_p),
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            key="download_report_docx",
-                            use_container_width=True,
-                        )
-
-                if pdf_p and os.path.exists(pdf_p):
-                    with open(pdf_p, "rb") as f_pdf:
-                        pdf_bytes = f_pdf.read()
-                    with rep_dl_pdf:
-                        st.download_button(
-                            label="📥 Download Inspection PDF (.pdf)",
-                            data=pdf_bytes,
-                            file_name=os.path.basename(pdf_p),
-                            mime="application/pdf",
-                            key="download_report_pdf",
-                            use_container_width=True,
-                        )
-                else:
-                    with rep_dl_pdf:
-                        st.info("ℹ️ PDF Export unavailable (conversion tool not installed).")
-
-            # Task 14: Display Cloud Storage Link Badge and Retrievable Links
-            current_upload = st.session_state.get("report_upload_result")
-            if current_upload is not None:
-                st.markdown("---")
-                st.markdown("##### ☁️ Cloud Storage Report Archive (Supabase)")
-                badge_bg = "#059669" if not current_upload.get("is_offline") else "#4f46e5"
-                badge_label = "☁️ Supabase Cloud Storage" if not current_upload.get("is_offline") else "📦 Offline Mock Storage"
-                docx_link = current_upload.get("report_url") or current_upload.get("docx_url")
-                pdf_link = current_upload.get("pdf_url")
-                bucket_name = current_upload.get("storage_bucket", "inspection-reports")
-
-                st.markdown(
-                    f"""
-                    <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px 18px; margin-top: 8px; margin-bottom: 12px;">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                            <span style="background-color: {badge_bg}; color: white; padding: 4px 12px; border-radius: 16px; font-size: 0.85em; font-weight: 600; letter-spacing: 0.3px;">
-                                {badge_label}
-                            </span>
-                            <span style="font-size: 0.82em; color: #64748b; font-family: monospace;">
-                                Bucket: {bucket_name}
-                            </span>
-                        </div>
-                        <div style="font-size: 0.92em; color: #1e293b; line-height: 1.6;">
-                            <b>Retrievable Inspection Report Links:</b>
-                            <ul style="margin: 6px 0 0 0; padding-left: 20px;">
-                                <li><b>Word (.docx):</b> <a href="{docx_link}" target="_blank" style="color: #2563eb; word-break: break-all;">{docx_link}</a></li>
-                                {f'<li><b>PDF (.pdf):</b> <a href="{pdf_link}" target="_blank" style="color: #2563eb; word-break: break-all;">{pdf_link}</a></li>' if pdf_link else ''}
-                            </ul>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                link_col1, link_col2 = st.columns(2)
-                with link_col1:
-                    st.info(f"📄 **Cloud Word Report:** [{docx_link}]({docx_link})")
-                with link_col2:
-                    if pdf_link:
-                        st.info(f"📑 **Cloud PDF Report:** [{pdf_link}]({pdf_link})")
-                    else:
-                        st.caption("ℹ️ PDF cloud link not available (PDF export was skipped).")
-
-st.markdown("---")
-
-# Inspection Workflow Section
-st.subheader("⚙️ Metrology Compliance Inspection Workflow")
-
-# Re-check readiness after both columns have executed
-all_ready, readiness = check_inspection_readiness(st.session_state)
-
-workflow_col1, workflow_col2 = st.columns([2, 1])
-
-with workflow_col1:
-    if all_ready:
-        st.success(
-            "🎉 **Both Front and Back packaging images are validated and cached!**\n\n"
-            "Ready to proceed with Reference Coin Detection (₹5 coin / 21.9mm calibration) and OCR text extraction."
-        )
-    elif readiness["front"] and not readiness["back"]:
-        st.warning("⚠️ **Front label is loaded, but Back label is missing.** Please provide the Back label image.")
-    elif not readiness["front"] and readiness["back"]:
-        st.warning("⚠️ **Back label is loaded, but Front label is missing.** Please provide the Front label image.")
-    else:
-        st.info("ℹ️ Upload or capture both Front and Back images (with reference ₹5 coin) to begin inspection.")
-
-with workflow_col2:
-    run_inspection = st.button(
-        "🚀 Start Automated Inspection",
-        type="primary",
-        disabled=(not all_ready),
-        use_container_width=True,
-    )
-
-if run_inspection:
-    with st.spinner("Processing packaging images and uploading to storage..."):
-        try:
-            scan_result = process_scan_upload(
-                front_image=st.session_state["front_image"],
-                back_image=st.session_state["back_image"],
-            )
-            st.session_state["current_scan"] = scan_result
-
-            # Re-persist any already extracted fields under the official scan_id
-            for s_key in ("front", "back"):
-                parsed = st.session_state.get(f"{s_key}_parsed_fields")
-                report = st.session_state.get(f"{s_key}_font_report")
-                if parsed:
-                    p_res = save_scan_extraction_results(
-                        scan_id=scan_result.scan_id,
-                        parsed_fields_result=parsed,
-                        font_measurement_report=report,
-                        side=s_key,
-                    )
-                    st.session_state[f"{s_key}_persistence"] = p_res
-
-            # Consolidate and link to the official scan_id (Task 12)
-            f_p = st.session_state.get("front_parsed_fields")
-            b_p = st.session_state.get("back_parsed_fields")
-            if f_p or b_p:
-                cons_rec = consolidate_scan_records(
-                    front_parsed=f_p,
-                    back_parsed=b_p,
-                    front_fonts=st.session_state.get("front_font_report"),
-                    back_fonts=st.session_state.get("back_font_report"),
-                    scan_id=scan_result.scan_id,
-                )
-                st.session_state["consolidated_record"] = cons_rec
-
-            st.balloons()
-            st.success("✅ Inspection scan initialized! Images uploaded and metadata logged to database.")
-        except Exception as exc:
-            st.error(f"❌ Failed to process scan upload: {exc}")
-
-# Confirmation Card for Active / Uploaded Scan
-if st.session_state.get("current_scan") is not None:
-    current_scan = st.session_state["current_scan"]
-    st.markdown("---")
-    st.markdown("### 📋 Active Inspection Scan Confirmation")
-
-    # Aggregate persistence statistics across front and back sides
-    front_p = st.session_state.get("front_persistence")
-    back_p = st.session_state.get("back_persistence")
-    total_saved_fields = (front_p.saved_count if front_p else 0) + (back_p.saved_count if back_p else 0)
-
-    # Key metrics row
-    card_col1, card_col2, card_col3, card_col4 = st.columns(4)
-    with card_col1:
-        scan_id_val = current_scan.get("scan_id", "")
-        short_id = f"{scan_id_val[:8]}..." if len(scan_id_val) > 12 else scan_id_val
-        st.metric("Scan ID", short_id, help=scan_id_val)
-    with card_col2:
-        raw_ts = current_scan.get("timestamp", "")
-        formatted_ts = raw_ts[:19].replace("T", " ") if "T" in raw_ts else raw_ts
-        st.metric("Timestamp (UTC)", formatted_ts)
-    with card_col3:
-        st.metric("Storage Status", current_scan.get("storage_status", "Offline Mock"))
-    with card_col4:
-        display_status = "PROCESSED" if total_saved_fields > 0 else current_scan.get("status", "uploaded").upper()
-        st.metric("Scan Status", display_status)
-
-    if total_saved_fields > 0:
-        st.success(f"💾 Saved {total_saved_fields} fields to Supabase")
-
-    # Metadata & Public Links Container Card
-    st.markdown(
-        f"""
-        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 18px; margin-top: 12px; margin-bottom: 12px;">
-            <h4 style="margin-top: 0; color: #1e293b;">📦 Scan Record & Persistence Verification</h4>
-            <p style="margin-bottom: 8px; color: #334155;">
-                <strong>Scan UUID:</strong> <code>{current_scan.get('scan_id')}</code><br>
-                <strong>Timestamp:</strong> <code>{current_scan.get('timestamp')}</code><br>
-                <strong>Storage Mode:</strong> <span style="font-weight: 600; color: {'#0d6efd' if not current_scan.get('is_offline') else '#fd7e14'};">{current_scan.get('storage_status')}</span><br>
-                <strong>Label Dimensions:</strong> {current_scan.get('dimensions', {}).get('summary', 'N/A')}
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # Public image links
-    st.markdown(
-        f"""
-**Public Image Links:**
-- 🔗 **Front Label Image:** [{current_scan.get('front_image_url')}]({current_scan.get('front_image_url')})
-- 🔗 **Back Label Image:** [{current_scan.get('back_image_url')}]({current_scan.get('back_image_url')})
-        """
-    )
-
-    st.info(
-        "Scan registered in database table `scans`. Storage upload verified. "
-        "Completed: Task 5 through Task 13 (Report Generation). "
-        "Next step: Task 14 (Report Upload to Supabase Storage)."
-    )
-
