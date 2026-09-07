@@ -70,6 +70,8 @@ models/
 *.pdopt
 
 # Temporary Scan Outputs & Report Exports
+data/scans_cache/*
+!data/scans_cache/.gitkeep
 temp/
 tmp/
 exports/

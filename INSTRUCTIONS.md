@@ -78,8 +78,8 @@ After completing a task, before marking it done:
 ### Phase 1 — Core Extraction & Measurement
 
 - [x] 1. Project scaffolding (repo structure, venv/dependencies, Streamlit skeleton)
-- [ ] 2. Supabase project setup — schema for `products`, `scans`, `extracted_fields`; storage bucket created
-- [ ] 3. Image input handling — Streamlit UI accepts front + back image capture/upload
+- [x] 2. Supabase project setup — schema for `products`, `scans`, `extracted_fields`; storage bucket created
+- [x] 3. Image input handling — Streamlit UI accepts front + back image capture/upload
 - [ ] 4. Upload raw images to Supabase Storage; log scan metadata to `scans` table
 - [ ] 5. Coin detection module (OpenCV Hough Circle Transform) — detect ₹5 coin, get pixel diameter
 - [ ] 6. Calibration module — compute pixels-per-mm ratio using 21.9mm fixed coin diameter
