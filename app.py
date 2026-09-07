@@ -23,6 +23,7 @@ from src.image_handler import (
     DEFAULT_CACHE_DIR,
     check_inspection_readiness,
     ensure_cache_dir,
+    optimize_image_resolution,
     process_and_cache_image,
 )
 from src.scan_service import (
@@ -485,6 +486,12 @@ def render_label_input_column(side_title: str, side_key: str):
         m2.metric("Aspect Ratio", f"{meta['aspect_ratio']}:1")
         m3.metric("File Size", f"{meta['size_kb']} KB")
         m4.metric("Format", f"{meta['format']} ({meta['mode']})")
+
+        if meta.get("is_optimized"):
+            st.caption(
+                f"⚡ **Resolution Optimized:** Resized from `{meta.get('original_dimensions')}` "
+                f"to `{meta['width']} × {meta['height']} px` for accelerated downstream processing."
+            )
 
         rel_cache_path = os.path.relpath(validated_img.cache_path, os.getcwd())
         st.caption(f"💾 **Cached locally at:** `{rel_cache_path}`")

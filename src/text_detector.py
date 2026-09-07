@@ -259,21 +259,20 @@ def _try_detect_paddleocr(
         return None
 
     try:
-        from paddleocr import PaddleOCR
+        from src.ocr_engine import get_paddle_ocr
 
-        ocr = PaddleOCR(
-            use_doc_orientation_classify=False,
-            use_doc_unwarping=False,
-            use_textline_orientation=False,
-            lang="en",
-        )
-        raw_results = ocr.ocr(img, det=True, rec=False)
-        if not raw_results or not raw_results[0]:
+        ocr = get_paddle_ocr()
+        if ocr is None:
+            return None
+
+        preds = list(ocr.predict(img))
+        if not preds or not preds[0]:
             return []
 
         h_img, w_img = img.shape[:2]
         regions: List[TextRegion] = []
-        for poly in raw_results[0]:
+        rec_polys = preds[0].get("rec_polys", [])
+        for poly in rec_polys:
             poly_np = np.array(poly, dtype=np.int32)
             x_min = int(np.min(poly_np[:, 0]))
             y_min = int(np.min(poly_np[:, 1]))
@@ -311,8 +310,8 @@ def _try_detect_paddleocr(
 def draw_annotated_image(
     img: np.ndarray,
     regions: List[TextRegion],
-    coin_center: Optional[Tuple[int, int]] = None,
-    coin_radius: Optional[float] = None,
+    coin_center: Optional[Tuple[int, int]],
+    coin_radius: Optional[float],
 ) -> np.ndarray:
     """Draw cyan bounding boxes and index tags on detected text regions."""
     annotated = img.copy()
@@ -398,8 +397,18 @@ def detect_text_regions(
     regions: List[TextRegion] = []
     used_method = "morphology"
 
-    # Option B: Try PaddleOCR if requested or in auto mode
-    if method in ("paddleocr", "auto"):
+    # Option A: Fast morphological contour detection (primary for speed & reliability)
+    if method in ("morphology", "auto"):
+        regions = detect_text_regions_morphological(
+            img=img,
+            coin_center=coin_center,
+            coin_radius=coin_radius,
+            merge_lines=merge_lines,
+        )
+        used_method = "morphology"
+
+    # Option B: PaddleOCR fallback if requested or if morphological yielded 0 regions
+    if method == "paddleocr" or (method == "auto" and not regions):
         paddle_regions = _try_detect_paddleocr(img, coin_center, coin_radius)
         if paddle_regions is not None:
             regions = paddle_regions
@@ -411,15 +420,6 @@ def detect_text_regions(
                 annotated_image=img,
                 message="PaddleOCR detection pipeline is unavailable.",
             )
-
-    # Option A: Morphological Contour detection
-    if used_method == "morphology":
-        regions = detect_text_regions_morphological(
-            img=img,
-            coin_center=coin_center,
-            coin_radius=coin_radius,
-            merge_lines=merge_lines,
-        )
 
     annotated = draw_annotated_image(
         img=img,

@@ -177,6 +177,7 @@ def get_paddle_ocr():
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
             use_textline_orientation=False,
+            text_det_limit_side_len=1280,
             lang="en",
         )
         return _paddle_ocr_singleton
@@ -418,94 +419,100 @@ def extract_text_from_image(
         ocr = get_paddle_ocr()
         if ocr is not None:
             try:
-                # Multi-pass: raw and preprocessed
-                images_to_process = [masked_img, preprocess_for_dot_matrix(masked_img)]
                 used_engine = "paddleocr"
-                
-                for img_pass in images_to_process:
-                    preds = list(ocr.predict(img_pass))
-                    if preds and len(preds) > 0:
-                        item = preds[0]
-                        rec_texts = item.get("rec_texts", [])
-                        rec_scores = item.get("rec_scores", [])
-                        rec_boxes = item.get("rec_boxes", [])
-                        rec_polys = item.get("rec_polys", [])
 
-                        for idx in range(len(rec_texts)):
-                            text = str(rec_texts[idx]).strip()
-                            if not text:
-                                continue
-                            conf = (
-                                float(rec_scores[idx])
-                                if idx < len(rec_scores)
-                                else 0.9
+                def _extract_from_img(img_target: np.ndarray) -> None:
+                    preds = list(ocr.predict(img_target))
+                    if not preds or len(preds) == 0:
+                        return
+                    item = preds[0]
+                    rec_texts = item.get("rec_texts", [])
+                    rec_scores = item.get("rec_scores", [])
+                    rec_boxes = item.get("rec_boxes", [])
+                    rec_polys = item.get("rec_polys", [])
+
+                    for idx in range(len(rec_texts)):
+                        text = str(rec_texts[idx]).strip()
+                        if not text:
+                            continue
+                        conf = (
+                            float(rec_scores[idx])
+                            if idx < len(rec_scores)
+                            else 0.9
+                        )
+
+                        if idx < len(rec_boxes):
+                            b = rec_boxes[idx]
+                            x1, y1, x2, y2 = (
+                                int(b[0]),
+                                int(b[1]),
+                                int(b[2]),
+                                int(b[3]),
                             )
+                        else:
+                            continue
 
-                            if idx < len(rec_boxes):
-                                b = rec_boxes[idx]
-                                x1, y1, x2, y2 = (
-                                    int(b[0]),
-                                    int(b[1]),
-                                    int(b[2]),
-                                    int(b[3]),
-                                )
-                            else:
-                                continue
+                        x_min, x_max = min(x1, x2), max(x1, x2)
+                        y_min, y_max = min(y1, y2), max(y1, y2)
+                        if (x_max - x_min) < 8 or (y_max - y_min) < 8:
+                            continue
+                        bbox = [x_min, y_min, x_max, y_max]
 
-                            x_min, x_max = min(x1, x2), max(x1, x2)
-                            y_min, y_max = min(y1, y2), max(y1, y2)
-                            if (x_max - x_min) < 8 or (y_max - y_min) < 8:
-                                continue
-                            bbox = [x_min, y_min, x_max, y_max]
+                        # Ensure line does not intersect coin ROI
+                        if is_in_coin_roi(bbox, coin_center, coin_radius):
+                            continue
 
-                            # Ensure line does not intersect coin ROI
-                            if is_in_coin_roi(bbox, coin_center, coin_radius):
-                                continue
+                        if idx < len(rec_polys):
+                            poly_arr = np.array(rec_polys[idx], dtype=np.int32)
+                            polygon = [
+                                [int(pt[0]), int(pt[1])] for pt in poly_arr
+                            ]
+                        else:
+                            polygon = [
+                                [x_min, y_min],
+                                [x_max, y_min],
+                                [x_max, y_max],
+                                [x_min, y_max],
+                            ]
 
-                            if idx < len(rec_polys):
-                                poly_arr = np.array(rec_polys[idx], dtype=np.int32)
-                                polygon = [
-                                    [int(pt[0]), int(pt[1])] for pt in poly_arr
-                                ]
-                            else:
-                                polygon = [
-                                    [x_min, y_min],
-                                    [x_max, y_min],
-                                    [x_max, y_max],
-                                    [x_min, y_max],
-                                ]
-                            
-                            # Multi-pass deduplication:
-                            # 1. High spatial overlap indicates the same physical line already extracted
-                            # 2. Duplicate text at close vertical proximity is skipped
-                            is_dup = False
-                            for existing in lines:
-                                overlap = bbox_overlap_ratio(bbox, existing.bbox)
-                                if overlap > 0.40:
-                                    is_dup = True
-                                    break
-                                norm_new = text.strip().lower()
-                                norm_exist = existing.text.strip().lower()
-                                if norm_new == norm_exist and abs(bbox[1] - existing.bbox[1]) < 40:
-                                    is_dup = True
-                                    break
-                                if (norm_new in norm_exist or norm_exist in norm_new) and overlap > 0.20:
-                                    is_dup = True
-                                    break
+                        # Multi-pass deduplication:
+                        # 1. High spatial overlap indicates the same physical line already extracted
+                        # 2. Duplicate text at close vertical proximity is skipped
+                        is_dup = False
+                        for existing in lines:
+                            overlap = bbox_overlap_ratio(bbox, existing.bbox)
+                            if overlap > 0.40:
+                                is_dup = True
+                                break
+                            norm_new = text.strip().lower()
+                            norm_exist = existing.text.strip().lower()
+                            if norm_new == norm_exist and abs(bbox[1] - existing.bbox[1]) < 40:
+                                is_dup = True
+                                break
+                            if (norm_new in norm_exist or norm_exist in norm_new) and overlap > 0.20:
+                                is_dup = True
+                                break
 
-                            if is_dup:
-                                continue
+                        if is_dup:
+                            continue
 
-                            lines.append(
-                                OCRLineItem(
-                                    text=text,
-                                    confidence=round(conf, 4),
-                                    bbox=bbox,
-                                    polygon=polygon,
-                                    width_px=float(x_max - x_min),
-                                    height_px=float(y_max - y_min),
-                                )
+                        lines.append(
+                            OCRLineItem(
+                                text=text,
+                                confidence=round(conf, 4),
+                                bbox=bbox,
+                                polygon=polygon,
+                                width_px=float(x_max - x_min),
+                                height_px=float(y_max - y_min),
                             )
+                        )
+
+                # Primary pass: standard masked image
+                _extract_from_img(masked_img)
+
+                # Adaptive secondary pass: only if primary pass found insufficient text (< 3 lines)
+                if len(lines) < 3:
+                    _extract_from_img(preprocess_for_dot_matrix(masked_img))
             except Exception as exc:
                 logger.warning(f"PaddleOCR prediction failed: {exc}")
 

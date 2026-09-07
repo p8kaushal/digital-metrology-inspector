@@ -23,6 +23,8 @@ import os
 import sys
 from typing import Tuple
 
+import unittest
+import numpy as np
 from PIL import Image, ImageDraw
 
 # Ensure project root is in sys.path
@@ -30,10 +32,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from src.image_handler import (
     DEFAULT_CACHE_DIR,
+    DEFAULT_MAX_DIMENSION,
     ValidatedImage,
     check_inspection_readiness,
     compute_image_metadata,
     ensure_cache_dir,
+    optimize_image_resolution,
     process_and_cache_image,
     save_to_cache,
     validate_image_bytes,
@@ -321,6 +325,84 @@ def test_streamlit_headless_execution():
         raise e
 
 
+def test_image_resolution_optimization():
+    """Verify optimize_image_resolution proportionally resizes down preserving aspect ratio."""
+    print("\n--- 5. Testing Image Resolution Optimization (Max Dimension 1920px) ---")
+
+    # Case A: Landscape image exceeding 1920px (4032x3024)
+    img_land = Image.new("RGB", (4032, 3024), color=(200, 200, 200))
+    opt_land = optimize_image_resolution(img_land, max_dimension=1920)
+    assert opt_land.size == (1920, 1440), f"Expected (1920, 1440), got {opt_land.size}"
+    aspect_orig = round(4032 / 3024, 4)
+    aspect_opt = round(opt_land.width / opt_land.height, 4)
+    assert abs(aspect_orig - aspect_opt) < 1e-3, f"Aspect ratio altered: {aspect_orig} vs {aspect_opt}"
+    print(f"✓ Landscape 4032x3024 downscaled to {opt_land.size} with exact aspect ratio preserved")
+
+    # Case B: Portrait image exceeding 1920px (3024x4032)
+    img_port = Image.new("RGB", (3024, 4032), color=(200, 200, 200))
+    opt_port = optimize_image_resolution(img_port, max_dimension=1920)
+    assert opt_port.size == (1440, 1920), f"Expected (1440, 1920), got {opt_port.size}"
+    aspect_orig_p = round(3024 / 4032, 4)
+    aspect_opt_p = round(opt_port.width / opt_port.height, 4)
+    assert abs(aspect_orig_p - aspect_opt_p) < 1e-3, f"Aspect ratio altered: {aspect_orig_p} vs {aspect_opt_p}"
+    print(f"✓ Portrait 3024x4032 downscaled to {opt_port.size} with exact aspect ratio preserved")
+
+    # Case C: Image within 1920px (e.g. 800x600) remains untouched
+    img_small = Image.new("RGB", (800, 600), color=(150, 150, 150))
+    opt_small = optimize_image_resolution(img_small, max_dimension=1920)
+    assert opt_small.size == (800, 600), f"Small image modified: {opt_small.size}"
+    print(f"✓ Image within bounds (800x600) retained without modification")
+
+    # Case D: OpenCV numpy array downscaling
+    arr = np.zeros((3024, 4032, 3), dtype=np.uint8)
+    opt_arr = optimize_image_resolution(arr, max_dimension=1920)
+    assert opt_arr.shape == (1440, 1920, 3), f"OpenCV array shape mismatch: {opt_arr.shape}"
+    print(f"✓ OpenCV ndarray downscaled from (3024, 4032) to {opt_arr.shape[:2]}")
+
+    # Case E: Integration with process_and_cache_image on oversized image
+    buf = io.BytesIO()
+    img_land.save(buf, format="JPEG")
+    raw_large_bytes = buf.getvalue()
+
+    ok, err, val_large = process_and_cache_image(
+        raw_large_bytes, side="back", filename="test_oversized.jpg"
+    )
+    assert ok is True, f"Failed to process oversized image: {err}"
+    assert val_large is not None
+    assert val_large.width == 1920 and val_large.height == 1440
+    assert val_large.is_optimized is True
+    assert val_large.metadata["original_dimensions"] == "4032 × 3024"
+    assert os.path.isfile(val_large.cache_path)
+    # Confirm cached file on disk is also 1920x1440
+    with Image.open(val_large.cache_path) as disk_img:
+        assert disk_img.size == (1920, 1440), f"Cached disk image size mismatch: {disk_img.size}"
+        disk_size = disk_img.size
+    print(f"✓ process_and_cache_image automatically optimized 4032x3024 -> {disk_size} on disk")
+
+
+class TestTask3ImageHandling(unittest.TestCase):
+    """Unittest TestCase wrapper for Task 3 verification suite."""
+
+    def test_synthetic_image_generation(self):
+        front_bytes, back_bytes = test_synthetic_image_generation()
+        self.assertGreater(len(front_bytes), 0)
+        self.assertGreater(len(back_bytes), 0)
+
+    def test_image_validation_and_metadata(self):
+        front_bytes, back_bytes = create_synthetic_packaging_image(side="front"), create_synthetic_packaging_image(side="back")
+        test_image_validation_and_metadata(front_bytes[0], back_bytes[0])
+
+    def test_caching_and_session_state(self):
+        front_bytes, back_bytes = create_synthetic_packaging_image(side="front"), create_synthetic_packaging_image(side="back")
+        test_caching_and_session_state(front_bytes[0], back_bytes[0])
+
+    def test_image_resolution_optimization(self):
+        test_image_resolution_optimization()
+
+    def test_streamlit_headless_execution(self):
+        test_streamlit_headless_execution()
+
+
 def main():
     """Execute complete Task 3 verification suite."""
     print("=" * 60)
@@ -330,6 +412,7 @@ def main():
     front_bytes, back_bytes = test_synthetic_image_generation()
     test_image_validation_and_metadata(front_bytes, back_bytes)
     val_front, val_back = test_caching_and_session_state(front_bytes, back_bytes)
+    test_image_resolution_optimization()
     test_streamlit_headless_execution()
 
     print("\n" + "=" * 60)
