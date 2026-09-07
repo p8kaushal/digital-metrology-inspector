@@ -8,6 +8,8 @@ validation, PIL preview generation, metadata display, and scan caching.
 import os
 import streamlit as st
 from PIL import Image
+import cv2
+from src.coin_detector import detect_coin
 
 from src.image_handler import (
     DEFAULT_CACHE_DIR,
@@ -166,6 +168,20 @@ def render_label_input_column(side_title: str, side_key: str):
     validated_img = st.session_state.get(f"{side_key}_image")
     if validated_img is not None:
         st.markdown("#### 🖼️ Image Preview & Specifications")
+
+        if st.button(f"🔍 Detect ₹5 Coin in {side_key.title()}", key=f"detect_coin_{side_key}"):
+            with st.spinner(f"Detecting coin in {side_key} image..."):
+                res = detect_coin(validated_img.cache_path)
+                if res.detected:
+                    st.success(res.message)
+                    st.image(
+                        cv2.cvtColor(res.annotated_image, cv2.COLOR_BGR2RGB),
+                        caption=f"{side_key.title()} Coin Detected: D={res.pixel_diameter:.1f}px",
+                        use_container_width=True
+                    )
+                else:
+                    st.warning(res.message)
+
         st.image(
             validated_img.image,
             caption=f"{side_key.title()} Label Preview ({validated_img.width} × {validated_img.height} px)",

@@ -81,7 +81,7 @@ After completing a task, before marking it done:
 - [x] 2. Supabase project setup — schema for `products`, `scans`, `extracted_fields`; storage bucket created
 - [x] 3. Image input handling — Streamlit UI accepts front + back image capture/upload
 - [x] 4. Upload raw images to Supabase Storage; log scan metadata to `scans` table
-- [ ] 5. Coin detection module (OpenCV Hough Circle Transform) — detect ₹5 coin, get pixel diameter
+- [x] 5. Coin detection module (OpenCV Hough Circle Transform) — detect ₹5 coin, get pixel diameter
 - [ ] 6. Calibration module — compute pixels-per-mm ratio using 21.9mm fixed coin diameter
 - [ ] 7. Text region detection on label images (front/back separately)
 - [ ] 8. OCR extraction via PaddleOCR on detected text regions

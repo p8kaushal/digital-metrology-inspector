@@ -22,7 +22,7 @@ This file serves as the dedicated progress tracker for all tasks across Phase 1,
   - *Details:* Upload raw images to Supabase Storage bucket (`product-images`), log scan metadata to `scans` table.
   - *Completed:* 2026-09-07
 
-- [ ] **Task 5: Coin Detection Module**
+- [x] **Task 5: Coin Detection Module**
   - *Details:* OpenCV Hough Circle Transform — detect ₹5 coin in label frame, calculate pixel diameter.
 
 - [ ] **Task 6: Calibration Module**
