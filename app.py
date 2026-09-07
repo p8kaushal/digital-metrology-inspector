@@ -15,6 +15,7 @@ from src.image_handler import (
     ensure_cache_dir,
     process_and_cache_image,
 )
+from src.scan_service import process_scan_upload
 
 # Configure page
 st.set_page_config(
@@ -32,6 +33,8 @@ if "front_image" not in st.session_state:
     st.session_state["front_image"] = None
 if "back_image" not in st.session_state:
     st.session_state["back_image"] = None
+if "current_scan" not in st.session_state:
+    st.session_state["current_scan"] = None
 
 # Sidebar Instructions & System Info
 with st.sidebar:
@@ -59,6 +62,7 @@ with st.sidebar:
     if st.button("🗑️ Clear Cache & Reset Images", use_container_width=True):
         st.session_state["front_image"] = None
         st.session_state["back_image"] = None
+        st.session_state["current_scan"] = None
         st.rerun()
 
     st.divider()
@@ -152,6 +156,9 @@ def render_label_input_column(side_title: str, side_key: str):
         else:
             st.error(f"❌ {side_key.title()} Image Error: {err_msg}")
             st.session_state[f"{side_key}_image"] = None
+    elif st.session_state.get(f"{side_key}_image") is not None:
+        # Preserve already validated image in session state
+        pass
     else:
         st.session_state[f"{side_key}_image"] = None
 
@@ -213,18 +220,73 @@ with workflow_col1:
 
 with workflow_col2:
     run_inspection = st.button(
-        "🚀 Start Metrology Compliance Inspection",
+        "🚀 Start Automated Inspection",
         type="primary",
         disabled=(not all_ready),
         use_container_width=True,
     )
 
 if run_inspection:
-    st.balloons()
-    st.success(
-        "Inspection pipeline initiated! Both Front and Back images will be processed in subsequent tasks:\n"
-        "- **Task 4**: Raw image cloud persistence (Supabase Storage)\n"
-        "- **Task 5**: OpenCV ₹5 coin Hough Circle Transform & pixel diameter calculation\n"
-        "- **Task 6**: Calibration ratio (pixels/mm) computation\n"
-        "- **Tasks 7-8**: PaddleOCR text extraction"
+    with st.spinner("Processing packaging images and uploading to storage..."):
+        try:
+            scan_result = process_scan_upload(
+                front_image=st.session_state["front_image"],
+                back_image=st.session_state["back_image"],
+            )
+            st.session_state["current_scan"] = scan_result
+            st.balloons()
+            st.success("✅ Inspection scan initialized! Images uploaded and metadata logged to database.")
+        except Exception as exc:
+            st.error(f"❌ Failed to process scan upload: {exc}")
+
+# Confirmation Card for Active / Uploaded Scan
+if st.session_state.get("current_scan") is not None:
+    current_scan = st.session_state["current_scan"]
+    st.markdown("---")
+    st.markdown("### 📋 Active Inspection Scan Confirmation")
+
+    # Key metrics row
+    card_col1, card_col2, card_col3, card_col4 = st.columns(4)
+    with card_col1:
+        scan_id_val = current_scan.get("scan_id", "")
+        short_id = f"{scan_id_val[:8]}..." if len(scan_id_val) > 12 else scan_id_val
+        st.metric("Scan ID", short_id, help=scan_id_val)
+    with card_col2:
+        raw_ts = current_scan.get("timestamp", "")
+        formatted_ts = raw_ts[:19].replace("T", " ") if "T" in raw_ts else raw_ts
+        st.metric("Timestamp (UTC)", formatted_ts)
+    with card_col3:
+        st.metric("Storage Status", current_scan.get("storage_status", "Offline Mock"))
+    with card_col4:
+        st.metric("Scan Status", current_scan.get("status", "uploaded").upper())
+
+    # Metadata & Public Links Container Card
+    st.markdown(
+        f"""
+        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 18px; margin-top: 12px; margin-bottom: 12px;">
+            <h4 style="margin-top: 0; color: #1e293b;">📦 Scan Record & Persistence Verification</h4>
+            <p style="margin-bottom: 8px; color: #334155;">
+                <strong>Scan UUID:</strong> <code>{current_scan.get('scan_id')}</code><br>
+                <strong>Timestamp:</strong> <code>{current_scan.get('timestamp')}</code><br>
+                <strong>Storage Mode:</strong> <span style="font-weight: 600; color: {'#0d6efd' if not current_scan.get('is_offline') else '#fd7e14'};">{current_scan.get('storage_status')}</span><br>
+                <strong>Label Dimensions:</strong> {current_scan.get('dimensions', {}).get('summary', 'N/A')}
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
+
+    # Public image links
+    st.markdown(
+        f"""
+**Public Image Links:**
+- 🔗 **Front Label Image:** [{current_scan.get('front_image_url')}]({current_scan.get('front_image_url')})
+- 🔗 **Back Label Image:** [{current_scan.get('back_image_url')}]({current_scan.get('back_image_url')})
+        """
+    )
+
+    st.info(
+        "Scan registered in database table `scans`. Storage upload verified. "
+        "Next steps: Task 5 (Coin Detection) and Task 6 (Pixels/mm Calibration)."
+    )
+

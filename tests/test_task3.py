@@ -307,7 +307,10 @@ def test_streamlit_headless_execution():
         print("✓ AppTest initialized cleanly and rendered main title and guidelines")
 
         # Verify button exists and is disabled initially
-        inspect_buttons = [b for b in at.button if "Start Metrology Compliance Inspection" in b.label]
+        inspect_buttons = [
+            b for b in at.button
+            if "Start Automated Inspection" in b.label or "Start Metrology Compliance Inspection" in b.label
+        ]
         assert len(inspect_buttons) > 0, "Inspection button missing"
         assert inspect_buttons[0].disabled is True, "Inspection button must be disabled when images are absent"
         print("✓ Inspection button present and correctly disabled when awaiting inputs")
