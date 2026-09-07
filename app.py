@@ -15,6 +15,7 @@ from src.calibration import compute_calibration
 from src.text_detector import detect_text_regions
 from src.ocr_engine import extract_text_from_image
 from src.field_parser import parse_ocr_lines
+from src.font_measurement import measure_font_heights
 
 from src.image_handler import (
     DEFAULT_CACHE_DIR,
@@ -78,6 +79,10 @@ with st.sidebar:
         st.session_state["back_text_result"] = None
         st.session_state["front_ocr_result"] = None
         st.session_state["back_ocr_result"] = None
+        st.session_state["front_parsed_fields"] = None
+        st.session_state["back_parsed_fields"] = None
+        st.session_state["front_font_report"] = None
+        st.session_state["back_font_report"] = None
         st.rerun()
 
     st.divider()
@@ -318,17 +323,52 @@ def render_label_input_column(side_title: str, side_key: str):
             if ocr_res.total_lines > 0:
                 parsed_res = parse_ocr_lines(ocr_res)
                 st.session_state[f"{side_key}_parsed_fields"] = parsed_res
-                with st.expander(f"📋 Extracted Mandatory Fields ({parsed_res.total_fields_found})", expanded=True):
+
+                calib_res = st.session_state.get(f"{side_key}_calibration")
+                font_report = measure_font_heights(parsed_res, calib_res)
+                st.session_state[f"{side_key}_font_report"] = font_report
+
+                with st.expander(f"📋 Extracted Mandatory Fields ({parsed_res.total_fields_found}) & Font Measurements", expanded=True):
                     if parsed_res.missing_mandatory_fields:
                         st.warning(f"⚠️ Missing Mandatory Fields: {', '.join([f.replace('_', ' ').title() for f in parsed_res.missing_mandatory_fields])}")
-                    
+
+                    # Rule 7 Compliance Visual Metrics and Badges
+                    fm1, fm2, fm3 = st.columns(3)
+                    fm1.metric("Mandatory Fields Found", f"{parsed_res.total_fields_found}/9")
+                    if font_report.calibrated_fields_count > 0:
+                        fm2.metric(
+                            "Rule 7 Compliance",
+                            f"{font_report.compliant_fields_count}/{font_report.calibrated_fields_count} Passed",
+                            delta="100% Compliant" if font_report.non_compliant_fields_count == 0 else f"-{font_report.non_compliant_fields_count} Deficit",
+                            delta_color="normal" if font_report.non_compliant_fields_count == 0 else "inverse",
+                        )
+                        fm3.metric("Calibration Ratio", f"{font_report.calibration_ratio_used:.2f} px/mm")
+                        if font_report.non_compliant_fields_count > 0:
+                            st.warning(f"⚠️ **Rule 7 Notice:** {font_report.non_compliant_fields_count} field(s) have measured font heights below the statutory minimum.")
+                        else:
+                            st.success("🟢 **Rule 7 Verified:** All measured declarations meet or exceed statutory minimum font heights!")
+                    else:
+                        fm2.metric("Rule 7 Status", "⚪ Uncalibrated")
+                        fm3.metric("Calibration Ratio", "Not Calibrated")
+                        st.info("ℹ️ Coin reference not calibrated. Font heights shown in raw pixels; calibrate with ₹5 coin for mm measurement and Rule 7 verification.")
+
                     parsed_table = []
                     for fname, fval in parsed_res.fields.items():
+                        m = font_report.measurements.get(fname)
+                        if m:
+                            font_height_disp = m.formatted_display
+                            rule7_badge = m.compliance_badge
+                        else:
+                            font_height_disp = f"{fval.height_px:.1f} px"
+                            rule7_badge = "⚪ Uncalibrated"
+
                         parsed_table.append({
                             "Field": fname.replace('_', ' ').title(),
                             "Extracted Value": f"{fval.extracted_value} {fval.unit if fval.unit else ''}".strip(),
+                            "Font Height (mm)": font_height_disp,
+                            "Rule 7 Compliance": rule7_badge,
                             "Confidence": f"{fval.confidence:.2%}",
-                            "Matched Text": fval.raw_text
+                            "Matched Text": fval.raw_text,
                         })
                     if parsed_table:
                         st.dataframe(parsed_table, use_container_width=True)
@@ -489,7 +529,7 @@ if st.session_state.get("current_scan") is not None:
 
     st.info(
         "Scan registered in database table `scans`. Storage upload verified. "
-        "Completed: Task 5 (Coin Detection), Task 6 (Calibration), Task 7 (Text Region Detection), Task 8 (OCR Extraction via PaddleOCR). "
-        "Next step: Task 9 (Field Structuring & Parsing)."
+        "Completed: Task 5 (Coin Detection), Task 6 (Calibration), Task 7 (Text Region Detection), Task 8 (OCR Extraction via PaddleOCR), Task 9 (Field Structuring & Parsing), Task 10 (Font-Height Measurement & Rule 7 Compliance). "
+        "Next step: Task 11 (Store Extraction Results in Supabase)."
     )
 

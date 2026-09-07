@@ -39,8 +39,9 @@ This file serves as the dedicated progress tracker for all tasks across Phase 1,
 - [x] **Task 9: Field Structuring & Parsing**
   - *Details:* Regex/keyword proximity matching into structured fields (MRP, Net Qty, Manufacturer, Mfg Date, Batch No, Consumer Care, Country of Origin).
 
-- [ ] **Task 10: Font-Height Measurement**
+- [x] **Task 10: Font-Height Measurement**
   - *Details:* Measure bounding box heights for key fields in mm using calibration ratio.
+  - *Completed:* 2026-09-07
 
 - [ ] **Task 11: Store Extraction Results**
   - *Details:* Persist structured fields to Supabase `extracted_fields` table.

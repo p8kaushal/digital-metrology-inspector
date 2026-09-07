@@ -86,7 +86,7 @@ After completing a task, before marking it done:
 - [x] 7. Text region detection on label images (front/back separately)
 - [x] 8. OCR extraction via PaddleOCR on detected text regions
 - [x] 9. Field structuring/parsing — regex/keyword matching into structured fields (MRP, Net Qty, Manufacturer, Mfg/Expiry Date, Batch No., Consumer Care, Country of Origin)
-- [ ] 10. Font-height measurement for key fields, converted to mm via calibration ratio
+- [x] 10. Font-height measurement for key fields, converted to mm via calibration ratio
 - [ ] 11. Store structured extraction results in Supabase (`extracted_fields`, linked to scan ID)
 - [ ] 12. Data consolidation — merge front + back records into one product record
 - [ ] 13. Report generation — editable Word doc (python-docx) + PDF export, listing all fields + font measurements per side
