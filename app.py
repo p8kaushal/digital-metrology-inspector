@@ -10,6 +10,7 @@ import streamlit as st
 from PIL import Image
 import cv2
 from src.coin_detector import detect_coin
+from src.calibration import compute_calibration
 
 from src.image_handler import (
     DEFAULT_CACHE_DIR,
@@ -174,6 +175,9 @@ def render_label_input_column(side_title: str, side_key: str):
                 res = detect_coin(validated_img.cache_path)
                 if res.detected:
                     st.success(res.message)
+                    calib_res = compute_calibration(res)
+                    if calib_res.is_calibrated:
+                        st.info(f"📐 **Calibration Ratio:** `{calib_res.pixels_per_mm:.2f} px/mm`")
                     st.image(
                         cv2.cvtColor(res.annotated_image, cv2.COLOR_BGR2RGB),
                         caption=f"{side_key.title()} Coin Detected: D={res.pixel_diameter:.1f}px",

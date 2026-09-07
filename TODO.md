@@ -25,7 +25,7 @@ This file serves as the dedicated progress tracker for all tasks across Phase 1,
 - [x] **Task 5: Coin Detection Module**
   - *Details:* OpenCV Hough Circle Transform — detect ₹5 coin in label frame, calculate pixel diameter.
 
-- [ ] **Task 6: Calibration Module**
+- [x] **Task 6: Calibration Module**
   - *Details:* Compute pixels-per-mm ratio using 21.9mm fixed coin diameter.
 
 - [ ] **Task 7: Text Region Detection**
