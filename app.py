@@ -13,6 +13,7 @@ import numpy as np
 from src.coin_detector import detect_coin
 from src.calibration import compute_calibration
 from src.text_detector import detect_text_regions
+from src.ocr_engine import extract_text_from_image
 
 from src.image_handler import (
     DEFAULT_CACHE_DIR,
@@ -74,6 +75,8 @@ with st.sidebar:
         st.session_state["back_calibration"] = None
         st.session_state["front_text_result"] = None
         st.session_state["back_text_result"] = None
+        st.session_state["front_ocr_result"] = None
+        st.session_state["back_ocr_result"] = None
         st.rerun()
 
     st.divider()
@@ -178,11 +181,11 @@ def render_label_input_column(side_title: str, side_key: str):
     if validated_img is not None:
         st.markdown("#### 🖼️ Image Preview & Specifications")
 
-        # Action Buttons: Coin Detection & Text Region Detection
-        btn_col1, btn_col2 = st.columns(2)
+        # Action Buttons: Coin Detection, Text Region Detection, & OCR Extraction
+        btn_col1, btn_col2, btn_col3 = st.columns(3)
         with btn_col1:
             if st.button(
-                f"🔍 Detect ₹5 Coin ({side_key.title()})",
+                f"🔍 Detect Coin ({side_key.title()})",
                 key=f"detect_coin_{side_key}",
                 use_container_width=True,
             ):
@@ -197,7 +200,7 @@ def render_label_input_column(side_title: str, side_key: str):
 
         with btn_col2:
             if st.button(
-                f"📝 Detect Text Regions ({side_key.title()})",
+                f"📝 Detect Regions ({side_key.title()})",
                 key=f"detect_text_{side_key}",
                 use_container_width=True,
             ):
@@ -218,6 +221,30 @@ def render_label_input_column(side_title: str, side_key: str):
                         coin_radius=c_radius,
                     )
                     st.session_state[f"{side_key}_text_result"] = text_res
+
+        with btn_col3:
+            if st.button(
+                f"🔤 Perform OCR Extraction",
+                key=f"ocr_button_{side_key}",
+                use_container_width=True,
+            ):
+                with st.spinner(f"Extracting text via OCR ({side_key.title()})..."):
+                    coin_res = st.session_state.get(f"{side_key}_coin")
+                    if coin_res is None or not getattr(coin_res, "detected", False):
+                        coin_res = detect_coin(validated_img.cache_path)
+                        if coin_res.detected:
+                            st.session_state[f"{side_key}_coin"] = coin_res
+                            st.session_state[f"{side_key}_calibration"] = compute_calibration(coin_res)
+
+                    c_center = coin_res.center if (coin_res and coin_res.detected) else None
+                    c_radius = coin_res.radius if (coin_res and coin_res.detected) else None
+
+                    ocr_res = extract_text_from_image(
+                        image_input=validated_img.cache_path,
+                        coin_center=c_center,
+                        coin_radius=c_radius,
+                    )
+                    st.session_state[f"{side_key}_ocr_result"] = ocr_res
 
         # Coin status feedback
         coin_res = st.session_state.get(f"{side_key}_coin")
@@ -249,8 +276,52 @@ def render_label_input_column(side_title: str, side_key: str):
             else:
                 st.warning(f"⚠️ {text_res.message}")
 
-        # Visual preview hierarchy
-        if text_res is not None and text_res.annotated_image is not None:
+        # OCR extraction status, metrics & text display
+        ocr_res = st.session_state.get(f"{side_key}_ocr_result")
+        if ocr_res is not None:
+            if ocr_res.total_lines > 0:
+                st.success(f"✓ Extracted {ocr_res.total_lines} line(s) via {ocr_res.engine_used.upper()} (Avg Confidence: {ocr_res.avg_confidence:.1%})")
+                om1, om2, om3 = st.columns(3)
+                om1.metric("Extracted Lines", ocr_res.total_lines)
+                om2.metric("Avg Confidence", f"{ocr_res.avg_confidence:.1%}")
+                om3.metric("OCR Engine", ocr_res.engine_used.upper())
+
+                with st.expander(f"🔤 Extracted Text & Line Details ({ocr_res.total_lines} lines)", expanded=True):
+                    st.markdown("**Full Extracted Text Summary:**")
+                    st.text_area(
+                        "Extracted Text Summary",
+                        value=ocr_res.full_text,
+                        height=110,
+                        disabled=True,
+                        key=f"full_text_{side_key}",
+                        label_visibility="collapsed",
+                    )
+
+                    calib_res = st.session_state.get(f"{side_key}_calibration")
+                    ocr_table = []
+                    for idx, line in enumerate(ocr_res.lines):
+                        row = {
+                            "Line #": idx + 1,
+                            "Extracted Text": line.text,
+                            "Confidence": f"{line.confidence:.2%}",
+                            "BBox": str(line.bbox),
+                            "Height (px)": f"{line.height_px:.1f}",
+                        }
+                        if calib_res and calib_res.is_calibrated:
+                            row["Height (mm)"] = f"{(line.height_px / calib_res.pixels_per_mm):.2f}"
+                        ocr_table.append(row)
+                    st.dataframe(ocr_table, use_container_width=True)
+            else:
+                st.warning(f"⚠️ No text lines extracted via OCR engine ({ocr_res.engine_used}).")
+
+        # Visual preview hierarchy: OCR annotated > Text Region annotated > Coin annotated > Raw
+        if ocr_res is not None and ocr_res.annotated_image is not None:
+            st.image(
+                cv2.cvtColor(ocr_res.annotated_image, cv2.COLOR_BGR2RGB),
+                caption=f"{side_key.title()} OCR Extracted Overlay ({ocr_res.total_lines} lines detected via {ocr_res.engine_used.upper()})",
+                use_container_width=True,
+            )
+        elif text_res is not None and text_res.annotated_image is not None:
             st.image(
                 cv2.cvtColor(text_res.annotated_image, cv2.COLOR_BGR2RGB),
                 caption=f"{side_key.title()} Detected Text Regions ({text_res.total_regions} cyan boxes)",
@@ -399,7 +470,7 @@ if st.session_state.get("current_scan") is not None:
 
     st.info(
         "Scan registered in database table `scans`. Storage upload verified. "
-        "Completed: Task 5 (Coin Detection), Task 6 (Calibration), Task 7 (Text Region Detection). "
-        "Next step: Task 8 (OCR Extraction via PaddleOCR)."
+        "Completed: Task 5 (Coin Detection), Task 6 (Calibration), Task 7 (Text Region Detection), Task 8 (OCR Extraction via PaddleOCR). "
+        "Next step: Task 9 (Field Structuring & Parsing)."
     )
 

@@ -261,7 +261,12 @@ def _try_detect_paddleocr(
     try:
         from paddleocr import PaddleOCR
 
-        ocr = PaddleOCR(use_textline_orientation=False, lang="en")
+        ocr = PaddleOCR(
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,
+            use_textline_orientation=False,
+            lang="en",
+        )
         raw_results = ocr.ocr(img, det=True, rec=False)
         if not raw_results or not raw_results[0]:
             return []

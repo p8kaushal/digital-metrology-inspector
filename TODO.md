@@ -32,8 +32,9 @@ This file serves as the dedicated progress tracker for all tasks across Phase 1,
   - *Details:* Detect text regions on front and back label images separately.
   - *Completed:* 2026-09-07
 
-- [ ] **Task 8: OCR Extraction**
+- [x] **Task 8: OCR Extraction**
   - *Details:* PaddleOCR text extraction on detected label regions.
+  - *Completed:* 2026-09-07
 
 - [ ] **Task 9: Field Structuring & Parsing**
   - *Details:* Regex/keyword proximity matching into structured fields (MRP, Net Qty, Manufacturer, Mfg Date, Batch No, Consumer Care, Country of Origin).
