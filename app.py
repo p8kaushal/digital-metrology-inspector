@@ -14,6 +14,7 @@ from src.coin_detector import detect_coin
 from src.calibration import compute_calibration
 from src.text_detector import detect_text_regions
 from src.ocr_engine import extract_text_from_image
+from src.field_parser import parse_ocr_lines
 
 from src.image_handler import (
     DEFAULT_CACHE_DIR,
@@ -313,6 +314,24 @@ def render_label_input_column(side_title: str, side_key: str):
                     st.dataframe(ocr_table, use_container_width=True)
             else:
                 st.warning(f"⚠️ No text lines extracted via OCR engine ({ocr_res.engine_used}).")
+                
+            if ocr_res.total_lines > 0:
+                parsed_res = parse_ocr_lines(ocr_res)
+                st.session_state[f"{side_key}_parsed_fields"] = parsed_res
+                with st.expander(f"📋 Extracted Mandatory Fields ({parsed_res.total_fields_found})", expanded=True):
+                    if parsed_res.missing_mandatory_fields:
+                        st.warning(f"⚠️ Missing Mandatory Fields: {', '.join([f.replace('_', ' ').title() for f in parsed_res.missing_mandatory_fields])}")
+                    
+                    parsed_table = []
+                    for fname, fval in parsed_res.fields.items():
+                        parsed_table.append({
+                            "Field": fname.replace('_', ' ').title(),
+                            "Extracted Value": f"{fval.extracted_value} {fval.unit if fval.unit else ''}".strip(),
+                            "Confidence": f"{fval.confidence:.2%}",
+                            "Matched Text": fval.raw_text
+                        })
+                    if parsed_table:
+                        st.dataframe(parsed_table, use_container_width=True)
 
         # Visual preview hierarchy: OCR annotated > Text Region annotated > Coin annotated > Raw
         if ocr_res is not None and ocr_res.annotated_image is not None:

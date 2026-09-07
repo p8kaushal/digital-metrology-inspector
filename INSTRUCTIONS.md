@@ -85,7 +85,7 @@ After completing a task, before marking it done:
 - [x] 6. Calibration module — compute pixels-per-mm ratio using 21.9mm fixed coin diameter
 - [x] 7. Text region detection on label images (front/back separately)
 - [x] 8. OCR extraction via PaddleOCR on detected text regions
-- [ ] 9. Field structuring/parsing — regex/keyword matching into structured fields (MRP, Net Qty, Manufacturer, Mfg/Expiry Date, Batch No., Consumer Care, Country of Origin)
+- [x] 9. Field structuring/parsing — regex/keyword matching into structured fields (MRP, Net Qty, Manufacturer, Mfg/Expiry Date, Batch No., Consumer Care, Country of Origin)
 - [ ] 10. Font-height measurement for key fields, converted to mm via calibration ratio
 - [ ] 11. Store structured extraction results in Supabase (`extracted_fields`, linked to scan ID)
 - [ ] 12. Data consolidation — merge front + back records into one product record
