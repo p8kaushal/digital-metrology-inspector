@@ -26,6 +26,7 @@ from src.image_handler import (
 )
 from src.scan_service import process_scan_upload, save_scan_extraction_results
 from src.consolidation import ConsolidatedProductRecord, consolidate_scan_records
+from src.report_generator import ReportGenerationResult, generate_inspection_report
 
 # Configure page
 st.set_page_config(
@@ -53,6 +54,8 @@ if "active_scan_id" not in st.session_state:
     st.session_state["active_scan_id"] = None
 if "consolidated_record" not in st.session_state:
     st.session_state["consolidated_record"] = None
+if "report_result" not in st.session_state:
+    st.session_state["report_result"] = None
 
 # Sidebar Instructions & System Info
 with st.sidebar:
@@ -96,6 +99,8 @@ with st.sidebar:
         st.session_state["front_persistence"] = None
         st.session_state["back_persistence"] = None
         st.session_state["active_scan_id"] = None
+        st.session_state["consolidated_record"] = None
+        st.session_state["report_result"] = None
         st.rerun()
 
     st.divider()
@@ -610,6 +615,86 @@ if front_parsed_data is not None or back_parsed_data is not None or st.session_s
 
             st.caption(f"💾 **Product Master Record Synced with Database:** Table `products` | Record ID: `{consolidated_rec.product_id}`")
 
+            # 📄 Inspection Report Generation & Export (Task 13)
+            st.markdown("---")
+            st.markdown("#### 📄 Statutory Metrology Inspection Report (Task 13)")
+            st.write(
+                "Generate an official, genuinely editable Word document (`.docx`) and PDF inspection report "
+                "incorporating Department of Consumer Affairs Legal Metrology headers, metadata, "
+                "₹5 coin calibration ratio, statutory declarations table, and packaging digital evidence."
+            )
+
+            rep_btn_col, rep_dl_word, rep_dl_pdf = st.columns([1.5, 1.4, 1.4])
+            with rep_btn_col:
+                gen_report_btn = st.button(
+                    "📄 Generate Inspection Report",
+                    key="btn_generate_inspection_report",
+                    type="primary",
+                    use_container_width=True,
+                )
+
+            if gen_report_btn:
+                with st.spinner("Generating official Legal Metrology inspection report (.docx & .pdf)..."):
+                    try:
+                        scan_id_for_rep = (
+                            active_scan_id
+                            or (active_scan.get("scan_id") if active_scan else None)
+                            or getattr(consolidated_rec, "product_id", None)
+                            or str(uuid.uuid4())
+                        )
+                        f_img_obj = st.session_state.get("front_image")
+                        b_img_obj = st.session_state.get("back_image")
+                        f_path = getattr(f_img_obj, "cache_path", None) if f_img_obj else None
+                        b_path = getattr(b_img_obj, "cache_path", None) if b_img_obj else None
+
+                        rep_res = generate_inspection_report(
+                            consolidated_record=consolidated_rec,
+                            front_image=f_path,
+                            back_image=b_path,
+                            font_report=st.session_state.get("front_font_report") or st.session_state.get("back_font_report"),
+                            calibration_result=st.session_state.get("front_calibration") or st.session_state.get("back_calibration"),
+                            output_dir="reports",
+                            scan_id=scan_id_for_rep,
+                        )
+                        st.session_state["report_result"] = rep_res
+                        st.success(f"✅ Inspection report generated successfully in {rep_res.generation_time_sec:.2f}s!")
+                    except Exception as exc:
+                        st.error(f"❌ Failed to generate inspection report: {exc}")
+
+            current_report = st.session_state.get("report_result")
+            if current_report is not None:
+                docx_p = current_report.docx_path
+                pdf_p = current_report.pdf_path
+
+                if docx_p and os.path.exists(docx_p):
+                    with open(docx_p, "rb") as f_docx:
+                        docx_bytes = f_docx.read()
+                    with rep_dl_word:
+                        st.download_button(
+                            label="📥 Download Editable Word (.docx)",
+                            data=docx_bytes,
+                            file_name=os.path.basename(docx_p),
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key="download_report_docx",
+                            use_container_width=True,
+                        )
+
+                if pdf_p and os.path.exists(pdf_p):
+                    with open(pdf_p, "rb") as f_pdf:
+                        pdf_bytes = f_pdf.read()
+                    with rep_dl_pdf:
+                        st.download_button(
+                            label="📥 Download Inspection PDF (.pdf)",
+                            data=pdf_bytes,
+                            file_name=os.path.basename(pdf_p),
+                            mime="application/pdf",
+                            key="download_report_pdf",
+                            use_container_width=True,
+                        )
+                else:
+                    with rep_dl_pdf:
+                        st.info("ℹ️ PDF Export unavailable (conversion tool not installed).")
+
 st.markdown("---")
 
 # Inspection Workflow Section
@@ -738,7 +823,7 @@ if st.session_state.get("current_scan") is not None:
 
     st.info(
         "Scan registered in database table `scans`. Storage upload verified. "
-        "Completed: Task 5 through Task 12 (Data Consolidation). "
-        "Next step: Task 13 (Report Generation)."
+        "Completed: Task 5 through Task 13 (Report Generation). "
+        "Next step: Task 14 (Report Upload to Supabase Storage)."
     )
 
