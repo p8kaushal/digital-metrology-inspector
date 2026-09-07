@@ -298,6 +298,34 @@ def get_product(product_id: str) -> Optional[Dict[str, Any]]:
     return _mock_db.products.get(product_id)
 
 
+def update_product(product_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Update an existing product record.
+
+    Args:
+        product_id: Product UUID string.
+        updates: Fields to update.
+
+    Returns:
+        Updated product dictionary or None.
+    """
+    data = dict(updates)
+    data["updated_at"] = _get_utc_now_iso()
+
+    client = get_supabase_client()
+    if client is not None:
+        try:
+            response = client.table("products").update(data).eq("id", product_id).execute()
+            if response.data:
+                return response.data[0]
+        except Exception as exc:
+            logger.error("Supabase update error on products (%s). Falling back to mock store.", exc)
+
+    if product_id in _mock_db.products:
+        _mock_db.products[product_id].update(data)
+        return _mock_db.products[product_id]
+    return None
+
+
 def list_products(limit: int = 50) -> List[Dict[str, Any]]:
     """List recent products."""
     client = get_supabase_client()

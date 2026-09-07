@@ -47,8 +47,9 @@ This file serves as the dedicated progress tracker for all tasks across Phase 1,
   - *Details:* Persist structured fields to Supabase `extracted_fields` table.
   - *Completed:* 2026-09-07
 
-- [ ] **Task 12: Data Consolidation**
+- [x] **Task 12: Data Consolidation**
   - *Details:* Merge front + back label records into unified product record.
+  - *Completed:* 2026-09-07
 
 - [ ] **Task 13: Report Generation**
   - *Details:* Generate editable Word document (`python-docx`) + PDF export.

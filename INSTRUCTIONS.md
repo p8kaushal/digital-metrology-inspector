@@ -88,7 +88,7 @@ After completing a task, before marking it done:
 - [x] 9. Field structuring/parsing — regex/keyword matching into structured fields (MRP, Net Qty, Manufacturer, Mfg/Expiry Date, Batch No., Consumer Care, Country of Origin)
 - [x] 10. Font-height measurement for key fields, converted to mm via calibration ratio
 - [x] 11. Store structured extraction results in Supabase (`extracted_fields`, linked to scan ID)
-- [ ] 12. Data consolidation — merge front + back records into one product record
+- [x] 12. Data consolidation — merge front + back records into one product record
 - [ ] 13. Report generation — editable Word doc (python-docx) + PDF export, listing all fields + font measurements per side
 - [ ] 14. Upload generated report to Supabase Storage; save retrievable link
 - [ ] 15. Manual correction UI in Streamlit — inspector reviews/edits fields before finalizing; corrections logged to Supabase

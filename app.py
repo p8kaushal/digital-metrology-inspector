@@ -25,6 +25,7 @@ from src.image_handler import (
     process_and_cache_image,
 )
 from src.scan_service import process_scan_upload, save_scan_extraction_results
+from src.consolidation import ConsolidatedProductRecord, consolidate_scan_records
 
 # Configure page
 st.set_page_config(
@@ -50,6 +51,8 @@ if "back_persistence" not in st.session_state:
     st.session_state["back_persistence"] = None
 if "active_scan_id" not in st.session_state:
     st.session_state["active_scan_id"] = None
+if "consolidated_record" not in st.session_state:
+    st.session_state["consolidated_record"] = None
 
 # Sidebar Instructions & System Info
 with st.sidebar:
@@ -468,6 +471,145 @@ with col_front:
 with col_back:
     render_label_input_column("📷 Back Packaging Label", "back")
 
+# ==============================================================================
+# 📦 Consolidated Product Master Record (Task 12)
+# ==============================================================================
+front_parsed_data = st.session_state.get("front_parsed_fields")
+back_parsed_data = st.session_state.get("back_parsed_fields")
+
+if front_parsed_data is not None or back_parsed_data is not None or st.session_state.get("consolidated_record") is not None:
+    active_scan = st.session_state.get("current_scan")
+    active_scan_id = active_scan.get("scan_id") if active_scan else st.session_state.get("active_scan_id")
+    front_fonts = st.session_state.get("front_font_report")
+    back_fonts = st.session_state.get("back_font_report")
+
+    if front_parsed_data is not None or back_parsed_data is not None:
+        consolidated_rec = consolidate_scan_records(
+            front_parsed=front_parsed_data,
+            back_parsed=back_parsed_data,
+            front_fonts=front_fonts,
+            back_fonts=back_fonts,
+            scan_id=active_scan_id,
+        )
+        st.session_state["consolidated_record"] = consolidated_rec
+    else:
+        consolidated_rec = st.session_state.get("consolidated_record")
+
+    if consolidated_rec is not None:
+        st.markdown("---")
+        with st.expander("📦 Consolidated Product Master Record", expanded=True):
+            total_mandatory = 9
+            present_count = 9 - len(consolidated_rec.missing_declarations)
+            completeness_str = (
+                f"{consolidated_rec.completeness_pct:.0f}%"
+                if consolidated_rec.completeness_pct in (0.0, 100.0)
+                else f"{consolidated_rec.completeness_pct:.1f}%"
+            )
+            badge_text = f"Mandatory Completeness: {completeness_str} ({present_count}/{total_mandatory} fields)"
+
+            if consolidated_rec.completeness_pct == 100.0:
+                st.success(f"✅ {badge_text}")
+            else:
+                st.warning(f"⚠️ {badge_text}")
+
+            # Key summary metrics
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Brand / Commodity", consolidated_rec.brand_name or "Packaged Commodity")
+            m2.metric("Completeness", f"{consolidated_rec.completeness_pct:.1f}%")
+            m3.metric("Mandatory Fields", f"{present_count}/{total_mandatory} Present")
+            uuid_display = (
+                f"{consolidated_rec.product_id[:8]}..."
+                if len(consolidated_rec.product_id) > 10
+                else consolidated_rec.product_id
+            )
+            m4.metric("Product UUID", uuid_display, help=consolidated_rec.product_id)
+
+            # Consolidated Declarations Table
+            DECLARATION_TITLES = {
+                "brand_name": "Brand / Common Commodity Name",
+                "mrp": "Maximum Retail Price (MRP)",
+                "net_quantity": "Net Quantity",
+                "manufacturer_details": "Manufacturer / Packer Details",
+                "mfg_date": "Date of Manufacture / Packaging",
+                "expiry_date": "Expiry / Best Before Date",
+                "batch_number": "Batch / Lot Number",
+                "consumer_care": "Consumer Care Information",
+                "country_of_origin": "Country of Origin",
+                "unit_sale_price": "Unit Sale Price (USP)",
+            }
+
+            table_rows = []
+            for d_key, d_title in DECLARATION_TITLES.items():
+                val = getattr(consolidated_rec, d_key, "")
+                is_present = bool(str(val).strip())
+
+                # Identify source side
+                in_f = d_key in (consolidated_rec.front_fields or {})
+                in_b = d_key in (consolidated_rec.back_fields or {})
+                if in_f and in_b:
+                    source_side = "Front & Back"
+                elif in_f:
+                    source_side = "Front Label"
+                elif in_b:
+                    source_side = "Back Label"
+                else:
+                    source_side = "—"
+
+                # Font measurement & Rule 7 badge
+                font_m = (consolidated_rec.font_measurements or {}).get(d_key)
+                if font_m:
+                    if hasattr(font_m, "formatted_display"):
+                        font_display = font_m.formatted_display
+                        rule7_badge = font_m.compliance_badge
+                    elif isinstance(font_m, dict):
+                        fh = font_m.get("font_height_mm")
+                        font_display = f"{fh:.2f} mm" if fh is not None else "Uncalibrated"
+                        rule7_badge = "🟢 PASS" if font_m.get("is_rule7_compliant") else "🔴 DEFICIT"
+                    else:
+                        font_display = str(font_m)
+                        rule7_badge = "⚪ Uncalibrated"
+                else:
+                    font_display = "—"
+                    rule7_badge = "⚪ Not Measured"
+
+                status_icon = "🟢 Declared" if is_present else "🔴 Missing"
+                table_rows.append({
+                    "Declaration": d_title,
+                    "Consolidated Value": val if is_present else "Not Declared",
+                    "Source Panel": source_side,
+                    "Font Height (mm)": font_display,
+                    "Rule 7 Status": rule7_badge,
+                    "Status": status_icon,
+                })
+
+            st.dataframe(table_rows, use_container_width=True)
+
+            # Missing Declarations Alert
+            if consolidated_rec.missing_declarations:
+                missing_labels = [
+                    DECLARATION_TITLES.get(d, d.replace("_", " ").title())
+                    for d in consolidated_rec.missing_declarations
+                ]
+                st.warning(f"⚠️ **Missing Mandatory Declarations ({len(consolidated_rec.missing_declarations)}/9):** {', '.join(missing_labels)}")
+            else:
+                st.success("🟢 **All 9 Statutory Declarations Detected:** Packaging satisfies mandatory disclosure requirements.")
+
+            # Resolved Field Conflicts Expander
+            if consolidated_rec.resolved_conflicts:
+                with st.expander(f"⚖️ Resolved Panel Conflicts ({len(consolidated_rec.resolved_conflicts)})", expanded=False):
+                    conflict_rows = []
+                    for c in consolidated_rec.resolved_conflicts:
+                        conflict_rows.append({
+                            "Field": DECLARATION_TITLES.get(c.get("field_name"), c.get("field_name", "").title()),
+                            "Front Panel": f"{c.get('front_value')} (conf: {c.get('front_confidence', 0):.0%})",
+                            "Back Panel": f"{c.get('back_value')} (conf: {c.get('back_confidence', 0):.0%})",
+                            "Selected": f"{c.get('selected_side', '').title()} Panel: {c.get('selected_value')}",
+                            "Reason": c.get("reason"),
+                        })
+                    st.dataframe(conflict_rows, use_container_width=True)
+
+            st.caption(f"💾 **Product Master Record Synced with Database:** Table `products` | Record ID: `{consolidated_rec.product_id}`")
+
 st.markdown("---")
 
 # Inspection Workflow Section
@@ -520,6 +662,19 @@ if run_inspection:
                         side=s_key,
                     )
                     st.session_state[f"{s_key}_persistence"] = p_res
+
+            # Consolidate and link to the official scan_id (Task 12)
+            f_p = st.session_state.get("front_parsed_fields")
+            b_p = st.session_state.get("back_parsed_fields")
+            if f_p or b_p:
+                cons_rec = consolidate_scan_records(
+                    front_parsed=f_p,
+                    back_parsed=b_p,
+                    front_fonts=st.session_state.get("front_font_report"),
+                    back_fonts=st.session_state.get("back_font_report"),
+                    scan_id=scan_result.scan_id,
+                )
+                st.session_state["consolidated_record"] = cons_rec
 
             st.balloons()
             st.success("✅ Inspection scan initialized! Images uploaded and metadata logged to database.")
@@ -583,7 +738,7 @@ if st.session_state.get("current_scan") is not None:
 
     st.info(
         "Scan registered in database table `scans`. Storage upload verified. "
-        "Completed: Task 5 (Coin Detection), Task 6 (Calibration), Task 7 (Text Region Detection), Task 8 (OCR Extraction via PaddleOCR), Task 9 (Field Structuring & Parsing), Task 10 (Font-Height Measurement & Rule 7 Compliance), Task 11 (Store Extraction Results in Supabase). "
-        "Next step: Task 12 (Data Consolidation)."
+        "Completed: Task 5 through Task 12 (Data Consolidation). "
+        "Next step: Task 13 (Report Generation)."
     )
 
