@@ -39,7 +39,7 @@ class TestTask10FontMeasurement(unittest.TestCase):
                 unit=None,
                 confidence=0.98,
                 line_number=0,
-                bbox=[10, 20, 110, 55],  # height = 35 px
+                bbox=[10, 20, 400, 55],  # height = 35 px, width = 390
                 height_px=35.0,
                 is_mandatory=True,
             ),
@@ -50,7 +50,7 @@ class TestTask10FontMeasurement(unittest.TestCase):
                 unit="g",
                 confidence=0.99,
                 line_number=1,
-                bbox=[10, 60, 110, 110],  # height = 50 px
+                bbox=[10, 60, 400, 110],  # height = 50 px, width = 390
                 height_px=50.0,
                 is_mandatory=True,
             ),
@@ -61,7 +61,7 @@ class TestTask10FontMeasurement(unittest.TestCase):
                 unit=None,
                 confidence=0.95,
                 line_number=2,
-                bbox=[10, 120, 110, 140],  # height = 20 px
+                bbox=[10, 120, 210, 140],  # height = 20 px, width = 200
                 height_px=20.0,
                 is_mandatory=True,
             ),
@@ -92,7 +92,7 @@ class TestTask10FontMeasurement(unittest.TestCase):
                     "test_field": {
                         "raw_text": "Sample Text",
                         "height_px": bbox_h,
-                        "bbox": [0, 0, 100, int(bbox_h)],
+                        "bbox": [0, 0, max(200, int(bbox_h * 11 * 0.5)), int(bbox_h)],
                     }
                 }
                 report = measure_font_heights(fields, calibration_result=ratio)
@@ -254,7 +254,7 @@ class TestTask10FontMeasurement(unittest.TestCase):
         poly_field = {
             "mrp": {
                 "raw_text": "MRP Rs 50",
-                "bbox": [[10, 20], [110, 20], [110, 60], [10, 60]],  # height = 40
+                "bbox": [[10, 20], [310, 20], [310, 60], [10, 60]],  # height = 40
             }
         }
         poly_report = measure_font_heights(poly_field, 10.0)

@@ -113,10 +113,17 @@ def get_rule7_minimum_height_mm(
     return RULE_7_BASELINE_MIN_HEIGHT_MM
 
 
-def _extract_bbox_height(field_val: Any) -> float:
-    """Safely extract bounding box height in pixels from varied field representations."""
+def _extract_single_line_height(field_val: Any) -> float:
+    """Safely extract bounding box height in pixels, adjusting for multi-line or wrapped text."""
     if field_val is None:
         return 0.0
+
+    raw_text = _extract_raw_text(field_val)
+    lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
+    num_lines = max(1, len(lines))
+
+    h_px = 0.0
+    w_px = 0.0
 
     # 1. Direct height_px or bbox_height_px attribute
     for attr in ("height_px", "bbox_height_px"):
@@ -125,18 +132,20 @@ def _extract_bbox_height(field_val: Any) -> float:
             try:
                 h = float(val)
                 if h > 0:
-                    return h
+                    h_px = h
+                    break
             except (ValueError, TypeError):
                 pass
 
     # 2. Dictionary lookups
-    if isinstance(field_val, dict):
+    if h_px == 0.0 and isinstance(field_val, dict):
         for key in ("height_px", "bbox_height_px"):
             if key in field_val and field_val[key] is not None:
                 try:
                     h = float(field_val[key])
                     if h > 0:
-                        return h
+                        h_px = h
+                        break
                 except (ValueError, TypeError):
                     pass
 
@@ -147,19 +156,41 @@ def _extract_bbox_height(field_val: Any) -> float:
 
     if bbox and isinstance(bbox, (list, tuple)):
         if len(bbox) == 4 and all(isinstance(x, (int, float)) for x in bbox):
-            # Standard [xmin, ymin, xmax, ymax] or [ymin, xmin, ymax, xmax]
-            # Height is abs(bbox[3] - bbox[1])
-            return float(abs(bbox[3] - bbox[1]))
+            h_calc = float(abs(bbox[3] - bbox[1]))
+            w_calc = float(abs(bbox[2] - bbox[0]))
+            if h_px == 0.0:
+                h_px = h_calc
+            w_px = w_calc
         elif len(bbox) == 4 and all(isinstance(pt, (list, tuple)) for pt in bbox):
-            # 4 polygon points [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
             ys = [pt[1] for pt in bbox]
-            return float(max(ys) - min(ys))
+            xs = [pt[0] for pt in bbox]
+            h_calc = float(max(ys) - min(ys))
+            w_calc = float(max(xs) - min(xs))
+            if h_px == 0.0:
+                h_px = h_calc
+            w_px = w_calc
 
     # 4. Numeric primitive
-    if isinstance(field_val, (int, float)):
-        return float(field_val)
+    if h_px == 0.0 and isinstance(field_val, (int, float)):
+        h_px = float(field_val)
 
-    return 0.0
+    if h_px <= 0:
+        return 0.0
+
+    # Adjust for multi-line text (explicit newlines)
+    if num_lines > 1:
+        return h_px / num_lines
+
+    # Adjust for wrapped text using aspect ratio estimation
+    if w_px > 0 and len(raw_text) > 0:
+        # Assume an average character aspect ratio of ~0.5 (width/height)
+        expected_w = len(raw_text) * h_px * 0.5
+        if w_px < expected_w * 0.6:  # Actual width is much smaller -> wrapped
+            estimated_lines = max(1, round(expected_w / w_px))
+            if estimated_lines > 1:
+                return h_px / estimated_lines
+
+    return h_px
 
 
 def _extract_raw_text(field_val: Any) -> str:
@@ -256,7 +287,7 @@ def measure_font_heights(
 
     for fname, fobj in fields_dict.items():
         raw_text = _extract_raw_text(fobj)
-        bbox_height_px = _extract_bbox_height(fobj)
+        bbox_height_px = _extract_single_line_height(fobj)
         cap_height_px = round(bbox_height_px * cap_height_factor, 2)
 
         if is_calibrated and pixels_per_mm > 0:
