@@ -43,8 +43,9 @@ This file serves as the dedicated progress tracker for all tasks across Phase 1,
   - *Details:* Measure bounding box heights for key fields in mm using calibration ratio.
   - *Completed:* 2026-09-07
 
-- [ ] **Task 11: Store Extraction Results**
+- [x] **Task 11: Store Extraction Results**
   - *Details:* Persist structured fields to Supabase `extracted_fields` table.
+  - *Completed:* 2026-09-07
 
 - [ ] **Task 12: Data Consolidation**
   - *Details:* Merge front + back label records into unified product record.

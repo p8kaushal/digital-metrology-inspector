@@ -13,7 +13,7 @@ import io
 import logging
 import os
 import uuid
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from PIL import Image
 
@@ -340,3 +340,260 @@ def get_scan_by_id(scan_id: str) -> Optional[Dict[str, Any]]:
         Scan record dict or None if not found.
     """
     return db.get_scan(scan_id)
+
+
+class SaveExtractionResult(dict):
+    """Container for field extraction persistence result.
+
+    Supports dictionary key access, attribute access, and tuple unpacking:
+        status, saved_count = save_scan_extraction_results(...)
+        result.saved_count
+        result['status']
+    """
+
+    def __init__(
+        self,
+        status: str = "success",
+        saved_count: int = 0,
+        scan_id: str = "",
+        fields: Optional[List[Dict[str, Any]]] = None,
+        side: str = "front",
+        is_offline: bool = False,
+        message: str = "",
+    ) -> None:
+        super().__init__(
+            status=status,
+            persistence_status=status,
+            saved_count=saved_count,
+            count=saved_count,
+            scan_id=scan_id,
+            fields=fields or [],
+            side=side,
+            is_offline=is_offline,
+            message=message,
+            success=(status in ("success", "processed")),
+        )
+        self.status = status
+        self.persistence_status = status
+        self.saved_count = saved_count
+        self.count = saved_count
+        self.scan_id = scan_id
+        self.fields = fields or []
+        self.side = side
+        self.is_offline = is_offline
+        self.message = message
+        self.success = (status in ("success", "processed"))
+
+    def __iter__(self):
+        # Enables tuple unpacking: status, count = save_scan_extraction_results(...)
+        yield self.status
+        yield self.saved_count
+
+    def __len__(self) -> int:
+        return 2
+
+    def __getitem__(self, item: Any) -> Any:
+        if isinstance(item, int):
+            return [self.status, self.saved_count][item]
+        return super().__getitem__(item)
+
+    def __repr__(self) -> str:
+        return (
+            f"<SaveExtractionResult status='{self.status}' saved_count={self.saved_count} "
+            f"scan_id='{self.scan_id}' side='{self.side}'>"
+        )
+
+
+def save_scan_extraction_results(
+    scan_id: str,
+    parsed_fields_result: Any,
+    font_measurement_report: Optional[Any] = None,
+    side: str = "front",
+) -> SaveExtractionResult:
+    """Extract, enrich, and persist OCR parsed fields and font measurements to database.
+
+    Args:
+        scan_id: UUID of the parent scan.
+        parsed_fields_result: ParsedFieldsResult instance, dict, or list of extracted fields.
+        font_measurement_report: Optional FontMeasurementReport instance or dict of measurements.
+        side: Packaging panel side ('front', 'back', or 'consolidated'). Default 'front'.
+
+    Returns:
+        SaveExtractionResult with persistence status, saved_count, scan_id, and list of fields.
+
+    Raises:
+        ValueError: If scan_id is missing or invalid.
+    """
+    if not scan_id or not str(scan_id).strip():
+        raise ValueError("scan_id is required and cannot be empty.")
+
+    scan_id_str = str(scan_id).strip()
+    logger.info("Persisting extracted fields for scan_id=%s, side=%s...", scan_id_str, side)
+
+    # 1. Ensure scan record exists in scans table (satisfies foreign key constraints)
+    existing_scan = db.get_scan(scan_id_str)
+    if existing_scan is None:
+        logger.info("Scan %s not found in DB. Creating initial scan entry...", scan_id_str)
+        db.create_scan({
+            "id": scan_id_str,
+            "scan_id": scan_id_str,
+            "status": "processing",
+            "notes": f"Auto-created during extraction persistence for {side} label",
+        })
+
+    # 2. Extract fields from parsed_fields_result
+    fields_dict: Dict[str, Any] = {}
+    if parsed_fields_result is None:
+        fields_dict = {}
+    elif hasattr(parsed_fields_result, "fields"):
+        fields_dict = getattr(parsed_fields_result, "fields") or {}
+    elif isinstance(parsed_fields_result, dict):
+        if "fields" in parsed_fields_result and isinstance(parsed_fields_result["fields"], dict):
+            fields_dict = parsed_fields_result["fields"]
+        else:
+            fields_dict = parsed_fields_result
+    elif isinstance(parsed_fields_result, (list, tuple)):
+        for idx, item in enumerate(parsed_fields_result):
+            name = (
+                getattr(item, "field_name", None)
+                or (item.get("field_name") if isinstance(item, dict) else None)
+                or f"field_{idx}"
+            )
+            fields_dict[name] = item
+
+    # 3. Extract font measurements from font_measurement_report
+    measurements_dict: Dict[str, Any] = {}
+    if font_measurement_report is not None:
+        if hasattr(font_measurement_report, "measurements"):
+            measurements_dict = getattr(font_measurement_report, "measurements") or {}
+        elif isinstance(font_measurement_report, dict):
+            measurements_dict = font_measurement_report.get("measurements", font_measurement_report)
+
+    # 4. Construct unified field records
+    fields_data: List[Dict[str, Any]] = []
+
+    for field_name, f_obj in fields_dict.items():
+        # Raw text
+        raw_text = ""
+        if hasattr(f_obj, "raw_text"):
+            raw_text = f_obj.raw_text or ""
+        elif isinstance(f_obj, dict):
+            raw_text = f_obj.get("raw_text") or f_obj.get("text") or ""
+        else:
+            raw_text = str(f_obj)
+
+        # Extracted value & unit
+        val = ""
+        unit = None
+        if hasattr(f_obj, "extracted_value"):
+            val = f_obj.extracted_value or ""
+            unit = getattr(f_obj, "unit", None)
+        elif isinstance(f_obj, dict):
+            val = f_obj.get("extracted_value") or f_obj.get("parsed_value") or f_obj.get("value") or ""
+            unit = f_obj.get("unit")
+        else:
+            val = str(f_obj)
+
+        # Parsed value
+        if isinstance(f_obj, dict) and "parsed_value" in f_obj and f_obj["parsed_value"] is not None:
+            parsed_value = str(f_obj["parsed_value"])
+        elif unit:
+            parsed_value = f"{val} {unit}".strip()
+        else:
+            parsed_value = str(val) if val is not None else ""
+
+        # Bounding box
+        bbox = None
+        if hasattr(f_obj, "bbox"):
+            bbox = f_obj.bbox
+        elif isinstance(f_obj, dict):
+            bbox = f_obj.get("bounding_box") or f_obj.get("bbox")
+
+        if isinstance(bbox, tuple):
+            bbox = list(bbox)
+
+        # Font height in px
+        font_height_px = 0.0
+        if hasattr(f_obj, "height_px") and f_obj.height_px is not None:
+            font_height_px = float(f_obj.height_px)
+        elif isinstance(f_obj, dict):
+            font_height_px = float(f_obj.get("font_height_px") or f_obj.get("height_px", 0.0))
+
+        # Confidence
+        confidence = 1.0
+        if hasattr(f_obj, "confidence") and f_obj.confidence is not None:
+            confidence = float(f_obj.confidence)
+        elif isinstance(f_obj, dict) and f_obj.get("confidence") is not None:
+            confidence = float(f_obj["confidence"])
+
+        # Font measurement values: font_height_mm and is_rule7_compliant
+        font_height_mm = None
+        is_rule7_compliant = None
+
+        m = measurements_dict.get(field_name)
+        if m is not None:
+            # font_height_mm
+            if hasattr(m, "font_height_mm") and m.font_height_mm is not None:
+                font_height_mm = float(m.font_height_mm)
+            elif isinstance(m, dict) and m.get("font_height_mm") is not None:
+                font_height_mm = float(m["font_height_mm"])
+
+            # is_rule7_compliant
+            if hasattr(m, "is_rule7_compliant") and m.is_rule7_compliant is not None:
+                is_rule7_compliant = bool(m.is_rule7_compliant)
+            elif isinstance(m, dict) and m.get("is_rule7_compliant") is not None:
+                is_rule7_compliant = bool(m["is_rule7_compliant"])
+
+            # bbox_height_px fallback
+            if font_height_px == 0.0:
+                if hasattr(m, "bbox_height_px") and m.bbox_height_px is not None:
+                    font_height_px = float(m.bbox_height_px)
+                elif isinstance(m, dict) and m.get("bbox_height_px") is not None:
+                    font_height_px = float(m["bbox_height_px"])
+        else:
+            if hasattr(f_obj, "font_height_mm") and getattr(f_obj, "font_height_mm") is not None:
+                font_height_mm = float(getattr(f_obj, "font_height_mm"))
+            elif isinstance(f_obj, dict) and f_obj.get("font_height_mm") is not None:
+                font_height_mm = float(f_obj["font_height_mm"])
+
+            if hasattr(f_obj, "is_rule7_compliant") and getattr(f_obj, "is_rule7_compliant") is not None:
+                is_rule7_compliant = bool(getattr(f_obj, "is_rule7_compliant"))
+            elif isinstance(f_obj, dict) and f_obj.get("is_rule7_compliant") is not None:
+                is_rule7_compliant = bool(f_obj["is_rule7_compliant"])
+
+        fields_data.append({
+            "scan_id": scan_id_str,
+            "side": side,
+            "field_name": field_name,
+            "raw_text": raw_text,
+            "parsed_value": parsed_value,
+            "bounding_box": bbox,
+            "font_height_px": font_height_px,
+            "font_height_mm": font_height_mm,
+            "confidence": confidence,
+            "is_rule7_compliant": is_rule7_compliant,
+            "is_corrected": False,
+        })
+
+    # 5. Save fields via db.save_extracted_fields(scan_id, fields_data)
+    saved_records = db.save_extracted_fields(scan_id_str, fields_data)
+    saved_count = len(saved_records)
+
+    # 6. Update scan status in scans table to 'processed'
+    db.update_scan(scan_id_str, {"status": "processed"})
+    logger.info("Scan %s status updated to 'processed'. Stored %d fields.", scan_id_str, saved_count)
+
+    is_offline = db.is_offline_mode()
+    mode_str = "offline mock" if is_offline else "Supabase"
+    msg = f"Saved {saved_count} fields to {mode_str} for scan {scan_id_str} ({side})"
+
+    return SaveExtractionResult(
+        status="success",
+        saved_count=saved_count,
+        scan_id=scan_id_str,
+        fields=saved_records,
+        side=side,
+        is_offline=is_offline,
+        message=msg,
+    )
+

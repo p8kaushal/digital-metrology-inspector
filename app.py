@@ -6,6 +6,7 @@ validation, PIL preview generation, metadata display, and scan caching.
 """
 
 import os
+import uuid
 import streamlit as st
 from PIL import Image
 import cv2
@@ -23,7 +24,7 @@ from src.image_handler import (
     ensure_cache_dir,
     process_and_cache_image,
 )
-from src.scan_service import process_scan_upload
+from src.scan_service import process_scan_upload, save_scan_extraction_results
 
 # Configure page
 st.set_page_config(
@@ -43,6 +44,12 @@ if "back_image" not in st.session_state:
     st.session_state["back_image"] = None
 if "current_scan" not in st.session_state:
     st.session_state["current_scan"] = None
+if "front_persistence" not in st.session_state:
+    st.session_state["front_persistence"] = None
+if "back_persistence" not in st.session_state:
+    st.session_state["back_persistence"] = None
+if "active_scan_id" not in st.session_state:
+    st.session_state["active_scan_id"] = None
 
 # Sidebar Instructions & System Info
 with st.sidebar:
@@ -83,6 +90,9 @@ with st.sidebar:
         st.session_state["back_parsed_fields"] = None
         st.session_state["front_font_report"] = None
         st.session_state["back_font_report"] = None
+        st.session_state["front_persistence"] = None
+        st.session_state["back_persistence"] = None
+        st.session_state["active_scan_id"] = None
         st.rerun()
 
     st.divider()
@@ -328,9 +338,30 @@ def render_label_input_column(side_title: str, side_key: str):
                 font_report = measure_font_heights(parsed_res, calib_res)
                 st.session_state[f"{side_key}_font_report"] = font_report
 
+                # Automatically persist extraction results to Supabase (Task 11)
+                active_scan = st.session_state.get("current_scan")
+                if active_scan and active_scan.get("scan_id"):
+                    active_scan_id = active_scan.get("scan_id")
+                else:
+                    if not st.session_state.get("active_scan_id"):
+                        st.session_state["active_scan_id"] = str(uuid.uuid4())
+                    active_scan_id = st.session_state["active_scan_id"]
+
+                persist_res = save_scan_extraction_results(
+                    scan_id=active_scan_id,
+                    parsed_fields_result=parsed_res,
+                    font_measurement_report=font_report,
+                    side=side_key,
+                )
+                st.session_state[f"{side_key}_persistence"] = persist_res
+
                 with st.expander(f"📋 Extracted Mandatory Fields ({parsed_res.total_fields_found}) & Font Measurements", expanded=True):
                     if parsed_res.missing_mandatory_fields:
                         st.warning(f"⚠️ Missing Mandatory Fields: {', '.join([f.replace('_', ' ').title() for f in parsed_res.missing_mandatory_fields])}")
+
+                    # Persistence Confirmation Badge
+                    if persist_res and persist_res.saved_count > 0:
+                        st.success(f"💾 Saved {persist_res.saved_count} fields to Supabase")
 
                     # Rule 7 Compliance Visual Metrics and Badges
                     fm1, fm2, fm3 = st.columns(3)
@@ -476,6 +507,20 @@ if run_inspection:
                 back_image=st.session_state["back_image"],
             )
             st.session_state["current_scan"] = scan_result
+
+            # Re-persist any already extracted fields under the official scan_id
+            for s_key in ("front", "back"):
+                parsed = st.session_state.get(f"{s_key}_parsed_fields")
+                report = st.session_state.get(f"{s_key}_font_report")
+                if parsed:
+                    p_res = save_scan_extraction_results(
+                        scan_id=scan_result.scan_id,
+                        parsed_fields_result=parsed,
+                        font_measurement_report=report,
+                        side=s_key,
+                    )
+                    st.session_state[f"{s_key}_persistence"] = p_res
+
             st.balloons()
             st.success("✅ Inspection scan initialized! Images uploaded and metadata logged to database.")
         except Exception as exc:
@@ -486,6 +531,11 @@ if st.session_state.get("current_scan") is not None:
     current_scan = st.session_state["current_scan"]
     st.markdown("---")
     st.markdown("### 📋 Active Inspection Scan Confirmation")
+
+    # Aggregate persistence statistics across front and back sides
+    front_p = st.session_state.get("front_persistence")
+    back_p = st.session_state.get("back_persistence")
+    total_saved_fields = (front_p.saved_count if front_p else 0) + (back_p.saved_count if back_p else 0)
 
     # Key metrics row
     card_col1, card_col2, card_col3, card_col4 = st.columns(4)
@@ -500,7 +550,11 @@ if st.session_state.get("current_scan") is not None:
     with card_col3:
         st.metric("Storage Status", current_scan.get("storage_status", "Offline Mock"))
     with card_col4:
-        st.metric("Scan Status", current_scan.get("status", "uploaded").upper())
+        display_status = "PROCESSED" if total_saved_fields > 0 else current_scan.get("status", "uploaded").upper()
+        st.metric("Scan Status", display_status)
+
+    if total_saved_fields > 0:
+        st.success(f"💾 Saved {total_saved_fields} fields to Supabase")
 
     # Metadata & Public Links Container Card
     st.markdown(
@@ -529,7 +583,7 @@ if st.session_state.get("current_scan") is not None:
 
     st.info(
         "Scan registered in database table `scans`. Storage upload verified. "
-        "Completed: Task 5 (Coin Detection), Task 6 (Calibration), Task 7 (Text Region Detection), Task 8 (OCR Extraction via PaddleOCR), Task 9 (Field Structuring & Parsing), Task 10 (Font-Height Measurement & Rule 7 Compliance). "
-        "Next step: Task 11 (Store Extraction Results in Supabase)."
+        "Completed: Task 5 (Coin Detection), Task 6 (Calibration), Task 7 (Text Region Detection), Task 8 (OCR Extraction via PaddleOCR), Task 9 (Field Structuring & Parsing), Task 10 (Font-Height Measurement & Rule 7 Compliance), Task 11 (Store Extraction Results in Supabase). "
+        "Next step: Task 12 (Data Consolidation)."
     )
 

@@ -11,7 +11,7 @@ import logging
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from dotenv import load_dotenv
 
@@ -413,15 +413,42 @@ def list_scans(limit: int = 50) -> List[Dict[str, Any]]:
 # Helper Functions: Extracted Fields
 # ==============================================================================
 
-def save_extracted_fields(fields: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Save extracted OCR fields for a scan.
+def save_extracted_fields(
+    arg1: Union[str, List[Dict[str, Any]]],
+    arg2: Optional[List[Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
+    """Save or upsert extracted OCR fields for a scan.
+
+    Supports two calling conventions:
+    1. save_extracted_fields(fields) where each field dict contains 'scan_id'
+    2. save_extracted_fields(scan_id, fields_data) where scan_id is explicitly passed
 
     Args:
-        fields: List of dictionaries with field extractions.
+        arg1: Either a scan_id string or a list of field dictionaries.
+        arg2: If arg1 is scan_id, arg2 is the list of field dictionaries.
 
     Returns:
         List of saved field dictionaries.
     """
+    if isinstance(arg1, str):
+        scan_id = arg1
+        raw_fields = arg2 or []
+        fields = []
+        for f in raw_fields:
+            item = dict(f)
+            item.setdefault("scan_id", scan_id)
+            fields.append(item)
+    elif arg2 is not None and isinstance(arg2, str):
+        scan_id = arg2
+        raw_fields = arg1 or []
+        fields = []
+        for f in raw_fields:
+            item = dict(f)
+            item.setdefault("scan_id", scan_id)
+            fields.append(item)
+    else:
+        fields = [dict(f) for f in (arg1 or [])]
+
     now = _get_utc_now_iso()
     prepared_fields = []
     for f in fields:
@@ -442,7 +469,24 @@ def save_extracted_fields(fields: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             logger.error("Supabase insert error on extracted_fields (%s). Falling back to mock store.", exc)
 
     for item in prepared_fields:
-        _mock_db.extracted_fields[item["id"]] = item
+        item_scan_id = item.get("scan_id")
+        item_side = item.get("side")
+        item_field_name = item.get("field_name")
+        existing_id = None
+        for eid, existing in _mock_db.extracted_fields.items():
+            if (
+                existing.get("scan_id") == item_scan_id
+                and existing.get("side") == item_side
+                and existing.get("field_name") == item_field_name
+            ):
+                existing_id = eid
+                break
+        if existing_id:
+            item["id"] = existing_id
+            _mock_db.extracted_fields[existing_id] = item
+        else:
+            _mock_db.extracted_fields[item["id"]] = item
+
     return prepared_fields
 
 

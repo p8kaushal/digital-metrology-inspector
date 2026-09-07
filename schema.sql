@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS scans (
     back_coin_detected BOOLEAN DEFAULT false,
     back_coin_diameter_px NUMERIC(10, 2),
     back_calibration_ratio NUMERIC(10, 4),  -- pixels per mm (diameter_px / 21.9)
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'uploaded', 'processing', 'completed', 'failed')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'uploaded', 'processing', 'processed', 'completed', 'failed')),
     dimensions JSONB DEFAULT '{}'::jsonb,
     report_url TEXT,
     notes TEXT,
@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS extracted_fields (
     font_height_px NUMERIC(10, 2),
     font_height_mm NUMERIC(10, 2),
     confidence NUMERIC(5, 4),
+    is_rule7_compliant BOOLEAN,
     is_corrected BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())

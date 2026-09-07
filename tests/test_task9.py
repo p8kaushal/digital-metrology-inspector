@@ -1,4 +1,7 @@
+import os
 import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.field_parser import parse_ocr_lines, MANDATORY_FIELDS, ParsedFieldsResult
 
 def test_parse_ocr_lines_food_packaging():
