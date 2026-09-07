@@ -24,7 +24,12 @@ from src.image_handler import (
     ensure_cache_dir,
     process_and_cache_image,
 )
-from src.scan_service import process_scan_upload, save_scan_extraction_results
+from src.scan_service import (
+    ReportUploadResult,
+    process_scan_upload,
+    save_scan_extraction_results,
+    upload_inspection_report,
+)
 from src.consolidation import ConsolidatedProductRecord, consolidate_scan_records
 from src.report_generator import ReportGenerationResult, generate_inspection_report
 
@@ -56,6 +61,8 @@ if "consolidated_record" not in st.session_state:
     st.session_state["consolidated_record"] = None
 if "report_result" not in st.session_state:
     st.session_state["report_result"] = None
+if "report_upload_result" not in st.session_state:
+    st.session_state["report_upload_result"] = None
 
 # Sidebar Instructions & System Info
 with st.sidebar:
@@ -101,6 +108,7 @@ with st.sidebar:
         st.session_state["active_scan_id"] = None
         st.session_state["consolidated_record"] = None
         st.session_state["report_result"] = None
+        st.session_state["report_upload_result"] = None
         st.rerun()
 
     st.divider()
@@ -658,6 +666,16 @@ if front_parsed_data is not None or back_parsed_data is not None or st.session_s
                         )
                         st.session_state["report_result"] = rep_res
                         st.success(f"✅ Inspection report generated successfully in {rep_res.generation_time_sec:.2f}s!")
+
+                        # Task 14: Automatically trigger upload_inspection_report upon report generation
+                        upload_res = upload_inspection_report(
+                            scan_id=scan_id_for_rep,
+                            docx_path=rep_res.docx_path,
+                            pdf_path=rep_res.pdf_path,
+                        )
+                        st.session_state["report_upload_result"] = upload_res
+                        storage_tag = upload_res.get("upload_status", "Supabase Storage")
+                        st.success(f"☁️ Report uploaded to cloud storage ({storage_tag}): {upload_res.report_url}")
                     except Exception as exc:
                         st.error(f"❌ Failed to generate inspection report: {exc}")
 
@@ -694,6 +712,49 @@ if front_parsed_data is not None or back_parsed_data is not None or st.session_s
                 else:
                     with rep_dl_pdf:
                         st.info("ℹ️ PDF Export unavailable (conversion tool not installed).")
+
+            # Task 14: Display Cloud Storage Link Badge and Retrievable Links
+            current_upload = st.session_state.get("report_upload_result")
+            if current_upload is not None:
+                st.markdown("---")
+                st.markdown("##### ☁️ Cloud Storage Report Archive (Supabase)")
+                badge_bg = "#059669" if not current_upload.get("is_offline") else "#4f46e5"
+                badge_label = "☁️ Supabase Cloud Storage" if not current_upload.get("is_offline") else "📦 Offline Mock Storage"
+                docx_link = current_upload.get("report_url") or current_upload.get("docx_url")
+                pdf_link = current_upload.get("pdf_url")
+                bucket_name = current_upload.get("storage_bucket", "inspection-reports")
+
+                st.markdown(
+                    f"""
+                    <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px 18px; margin-top: 8px; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                            <span style="background-color: {badge_bg}; color: white; padding: 4px 12px; border-radius: 16px; font-size: 0.85em; font-weight: 600; letter-spacing: 0.3px;">
+                                {badge_label}
+                            </span>
+                            <span style="font-size: 0.82em; color: #64748b; font-family: monospace;">
+                                Bucket: {bucket_name}
+                            </span>
+                        </div>
+                        <div style="font-size: 0.92em; color: #1e293b; line-height: 1.6;">
+                            <b>Retrievable Inspection Report Links:</b>
+                            <ul style="margin: 6px 0 0 0; padding-left: 20px;">
+                                <li><b>Word (.docx):</b> <a href="{docx_link}" target="_blank" style="color: #2563eb; word-break: break-all;">{docx_link}</a></li>
+                                {f'<li><b>PDF (.pdf):</b> <a href="{pdf_link}" target="_blank" style="color: #2563eb; word-break: break-all;">{pdf_link}</a></li>' if pdf_link else ''}
+                            </ul>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                link_col1, link_col2 = st.columns(2)
+                with link_col1:
+                    st.info(f"📄 **Cloud Word Report:** [{docx_link}]({docx_link})")
+                with link_col2:
+                    if pdf_link:
+                        st.info(f"📑 **Cloud PDF Report:** [{pdf_link}]({pdf_link})")
+                    else:
+                        st.caption("ℹ️ PDF cloud link not available (PDF export was skipped).")
 
 st.markdown("---")
 

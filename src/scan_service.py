@@ -39,6 +39,8 @@ if not logger.handlers:
 # Storage constants
 STORAGE_BUCKET = "product-images"
 STORAGE_PREFIX = "scans"
+REPORT_STORAGE_BUCKET = "inspection-reports"
+REPORT_STORAGE_PREFIX = "reports"
 
 
 def _get_utc_now_iso() -> str:
@@ -596,4 +598,192 @@ def save_scan_extraction_results(
         is_offline=is_offline,
         message=msg,
     )
+
+
+# ==============================================================================
+# Task 14: Inspection Report Storage & Link Retrieval
+# ==============================================================================
+
+class ReportUploadResult(dict):
+    """Container for inspection report storage upload result and retrievable cloud links.
+
+    Supports both dictionary key access (result['report_url']) and attribute
+    access (result.report_url) for developer convenience.
+    """
+
+    def __init__(
+        self,
+        scan_id: str,
+        report_url: str,
+        pdf_url: Optional[str] = None,
+        docx_url: Optional[str] = None,
+        status: str = "success",
+        upload_status: str = "uploaded",
+        is_offline: bool = False,
+        storage_bucket: str = REPORT_STORAGE_BUCKET,
+        docx_storage_path: str = "",
+        pdf_storage_path: Optional[str] = None,
+        updated_scan: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        resolved_docx_url = docx_url or report_url
+        super().__init__(
+            scan_id=scan_id,
+            id=scan_id,
+            report_url=report_url,
+            docx_url=resolved_docx_url,
+            pdf_url=pdf_url,
+            status=status,
+            upload_status=upload_status,
+            is_offline=is_offline,
+            storage_bucket=storage_bucket,
+            bucket=storage_bucket,
+            docx_storage_path=docx_storage_path,
+            pdf_storage_path=pdf_storage_path,
+            updated_scan=updated_scan,
+        )
+        self.scan_id = scan_id
+        self.id = scan_id
+        self.report_url = report_url
+        self.docx_url = resolved_docx_url
+        self.pdf_url = pdf_url
+        self.status = status
+        self.upload_status = upload_status
+        self.is_offline = is_offline
+        self.storage_bucket = storage_bucket
+        self.bucket = storage_bucket
+        self.docx_storage_path = docx_storage_path
+        self.pdf_storage_path = pdf_storage_path
+        self.updated_scan = updated_scan
+
+    def __repr__(self) -> str:
+        return (
+            f"<ReportUploadResult scan_id='{self.scan_id}' status='{self.status}' "
+            f"report_url='{self.report_url}' pdf_url='{self.pdf_url}' "
+            f"storage='{self.upload_status}'>"
+        )
+
+
+def upload_inspection_report(
+    scan_id: str,
+    docx_path: str,
+    pdf_path: Optional[str] = None,
+    bucket_name: str = REPORT_STORAGE_BUCKET,
+) -> ReportUploadResult:
+    """Upload inspection report files (.docx and optional .pdf) to Supabase Storage and update scan record.
+
+    1. Uploads Word .docx report to Supabase Storage ('inspection-reports' bucket under
+       'reports/{scan_id}/inspection_report.docx').
+    2. Uploads PDF .pdf report (if provided and exists) under 'reports/{scan_id}/inspection_report.pdf'.
+    3. Retrieves public storage URLs.
+    4. Updates 'report_url' in Supabase scans table via db.update_scan().
+    5. Returns ReportUploadResult container with report_url, pdf_url, and upload status.
+
+    Args:
+        scan_id: Scan UUID string.
+        docx_path: Local filesystem path to generated Word (.docx) inspection report.
+        pdf_path: Optional local filesystem path to generated PDF (.pdf) inspection report.
+        bucket_name: Storage bucket name (default 'inspection-reports').
+
+    Returns:
+        ReportUploadResult containing report_url, pdf_url, upload_status, and scan update metadata.
+
+    Raises:
+        ValueError: If scan_id or docx_path is missing or empty.
+        FileNotFoundError: If docx_path does not exist on disk.
+    """
+    if not scan_id or not str(scan_id).strip():
+        raise ValueError("scan_id is required and cannot be empty.")
+    scan_id_str = str(scan_id).strip()
+
+    if not docx_path or not str(docx_path).strip():
+        raise ValueError("docx_path is required and cannot be empty.")
+    docx_path_str = str(docx_path).strip()
+
+    if not os.path.exists(docx_path_str):
+        raise FileNotFoundError(f"Word inspection report not found at: {docx_path_str}")
+
+    logger.info("Uploading inspection report for scan_id=%s...", scan_id_str)
+
+    # 1. Read Word (.docx) report bytes and upload to Supabase Storage
+    with open(docx_path_str, "rb") as f_docx:
+        docx_bytes = f_docx.read()
+
+    docx_storage_path = f"reports/{scan_id_str}/inspection_report.docx"
+    docx_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    logger.info("Uploading Word report to %s:%s...", bucket_name, docx_storage_path)
+    docx_upload = db.upload_file_to_storage(
+        bucket_name=bucket_name,
+        file_bytes=docx_bytes,
+        destination_path=docx_storage_path,
+        content_type=docx_mime,
+    )
+    docx_url = docx_upload.get("url", "")
+    docx_offline = docx_upload.get("offline", False)
+    report_url = docx_url
+
+    # 2. Process optional PDF report
+    pdf_url: Optional[str] = None
+    pdf_storage_path: Optional[str] = None
+    pdf_offline: bool = False
+
+    if pdf_path and str(pdf_path).strip():
+        pdf_path_str = str(pdf_path).strip()
+        if os.path.exists(pdf_path_str):
+            with open(pdf_path_str, "rb") as f_pdf:
+                pdf_bytes = f_pdf.read()
+
+            pdf_storage_path = f"reports/{scan_id_str}/inspection_report.pdf"
+            pdf_mime = "application/pdf"
+
+            logger.info("Uploading PDF report to %s:%s...", bucket_name, pdf_storage_path)
+            pdf_upload = db.upload_file_to_storage(
+                bucket_name=bucket_name,
+                file_bytes=pdf_bytes,
+                destination_path=pdf_storage_path,
+                content_type=pdf_mime,
+            )
+            pdf_url = pdf_upload.get("url")
+            pdf_offline = pdf_upload.get("offline", False)
+        else:
+            logger.warning(
+                "Specified pdf_path not found on disk: %s. Skipping PDF upload.",
+                pdf_path_str,
+            )
+
+    is_offline = docx_offline or pdf_offline or db.is_offline_mode()
+    upload_status = "Offline Mock" if is_offline else "Cloud (Supabase)"
+
+    # 3. Ensure scan record exists in scans table (satisfies foreign key / mock store consistency)
+    existing_scan = db.get_scan(scan_id_str)
+    if existing_scan is None:
+        logger.info("Scan %s not found in DB. Creating initial scan record...", scan_id_str)
+        db.create_scan({
+            "id": scan_id_str,
+            "scan_id": scan_id_str,
+            "status": "processed",
+            "report_url": report_url,
+            "notes": f"Auto-created during inspection report upload. Storage: {upload_status}.",
+        })
+
+    # 4. Update report_url in Supabase scans table via db.update_scan()
+    logger.info("Updating scan %s record with report_url: %s", scan_id_str, report_url)
+    updated_scan = db.update_scan(scan_id_str, {"report_url": report_url})
+
+    result = ReportUploadResult(
+        scan_id=scan_id_str,
+        report_url=report_url,
+        pdf_url=pdf_url,
+        docx_url=docx_url,
+        status="success",
+        upload_status=upload_status,
+        is_offline=is_offline,
+        storage_bucket=bucket_name,
+        docx_storage_path=docx_storage_path,
+        pdf_storage_path=pdf_storage_path,
+        updated_scan=updated_scan,
+    )
+
+    logger.info("Inspection report uploaded successfully for scan %s: %s", scan_id_str, result)
+    return result
 

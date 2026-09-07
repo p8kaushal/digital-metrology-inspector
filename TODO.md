@@ -55,8 +55,9 @@ This file serves as the dedicated progress tracker for all tasks across Phase 1,
   - *Details:* Generate editable Word document (`python-docx`) + PDF export.
   - *Completed:* 2026-09-07
 
-- [ ] **Task 14: Report Upload**
+- [x] **Task 14: Report Upload**
   - *Details:* Upload report to Supabase Storage (`inspection-reports`) & save retrievable link.
+  - *Completed:* 2026-09-07
 
 - [ ] **Task 15: Manual Correction UI**
   - *Details:* Streamlit interface for inspector field edits & correction logging.
