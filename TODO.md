@@ -28,8 +28,9 @@ This file serves as the dedicated progress tracker for all tasks across Phase 1,
 - [x] **Task 6: Calibration Module**
   - *Details:* Compute pixels-per-mm ratio using 21.9mm fixed coin diameter.
 
-- [ ] **Task 7: Text Region Detection**
+- [x] **Task 7: Text Region Detection**
   - *Details:* Detect text regions on front and back label images separately.
+  - *Completed:* 2026-09-07
 
 - [ ] **Task 8: OCR Extraction**
   - *Details:* PaddleOCR text extraction on detected label regions.

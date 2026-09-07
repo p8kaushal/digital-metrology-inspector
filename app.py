@@ -9,8 +9,10 @@ import os
 import streamlit as st
 from PIL import Image
 import cv2
+import numpy as np
 from src.coin_detector import detect_coin
 from src.calibration import compute_calibration
+from src.text_detector import detect_text_regions
 
 from src.image_handler import (
     DEFAULT_CACHE_DIR,
@@ -66,6 +68,12 @@ with st.sidebar:
         st.session_state["front_image"] = None
         st.session_state["back_image"] = None
         st.session_state["current_scan"] = None
+        st.session_state["front_coin"] = None
+        st.session_state["back_coin"] = None
+        st.session_state["front_calibration"] = None
+        st.session_state["back_calibration"] = None
+        st.session_state["front_text_result"] = None
+        st.session_state["back_text_result"] = None
         st.rerun()
 
     st.divider()
@@ -170,27 +178,111 @@ def render_label_input_column(side_title: str, side_key: str):
     if validated_img is not None:
         st.markdown("#### 🖼️ Image Preview & Specifications")
 
-        if st.button(f"🔍 Detect ₹5 Coin in {side_key.title()}", key=f"detect_coin_{side_key}"):
-            with st.spinner(f"Detecting coin in {side_key} image..."):
-                res = detect_coin(validated_img.cache_path)
-                if res.detected:
-                    st.success(res.message)
-                    calib_res = compute_calibration(res)
-                    if calib_res.is_calibrated:
-                        st.info(f"📐 **Calibration Ratio:** `{calib_res.pixels_per_mm:.2f} px/mm`")
-                    st.image(
-                        cv2.cvtColor(res.annotated_image, cv2.COLOR_BGR2RGB),
-                        caption=f"{side_key.title()} Coin Detected: D={res.pixel_diameter:.1f}px",
-                        use_container_width=True
-                    )
-                else:
-                    st.warning(res.message)
+        # Action Buttons: Coin Detection & Text Region Detection
+        btn_col1, btn_col2 = st.columns(2)
+        with btn_col1:
+            if st.button(
+                f"🔍 Detect ₹5 Coin ({side_key.title()})",
+                key=f"detect_coin_{side_key}",
+                use_container_width=True,
+            ):
+                with st.spinner(f"Detecting ₹5 coin in {side_key} image..."):
+                    coin_res = detect_coin(validated_img.cache_path)
+                    st.session_state[f"{side_key}_coin"] = coin_res
+                    if coin_res.detected:
+                        calib_res = compute_calibration(coin_res)
+                        st.session_state[f"{side_key}_calibration"] = calib_res
+                    else:
+                        st.session_state[f"{side_key}_calibration"] = None
 
-        st.image(
-            validated_img.image,
-            caption=f"{side_key.title()} Label Preview ({validated_img.width} × {validated_img.height} px)",
-            use_container_width=True,
-        )
+        with btn_col2:
+            if st.button(
+                f"📝 Detect Text Regions ({side_key.title()})",
+                key=f"detect_text_{side_key}",
+                use_container_width=True,
+            ):
+                with st.spinner(f"Detecting text regions in {side_key} image..."):
+                    coin_res = st.session_state.get(f"{side_key}_coin")
+                    if coin_res is None or not getattr(coin_res, "detected", False):
+                        coin_res = detect_coin(validated_img.cache_path)
+                        if coin_res.detected:
+                            st.session_state[f"{side_key}_coin"] = coin_res
+                            st.session_state[f"{side_key}_calibration"] = compute_calibration(coin_res)
+
+                    c_center = coin_res.center if (coin_res and coin_res.detected) else None
+                    c_radius = coin_res.radius if (coin_res and coin_res.detected) else None
+
+                    text_res = detect_text_regions(
+                        image_input=validated_img.cache_path,
+                        coin_center=c_center,
+                        coin_radius=c_radius,
+                    )
+                    st.session_state[f"{side_key}_text_result"] = text_res
+
+        # Coin status feedback
+        coin_res = st.session_state.get(f"{side_key}_coin")
+        if coin_res is not None:
+            if coin_res.detected:
+                st.success(f"✓ {coin_res.message}")
+                calib_res = st.session_state.get(f"{side_key}_calibration")
+                if calib_res and calib_res.is_calibrated:
+                    st.info(f"📐 **Calibration:** `{calib_res.pixels_per_mm:.2f} px/mm` (Coin D: {coin_res.pixel_diameter:.1f}px)")
+            else:
+                st.warning(f"⚠️ {coin_res.message}")
+
+        # Text region status & metrics feedback
+        text_res = st.session_state.get(f"{side_key}_text_result")
+        if text_res is not None:
+            if text_res.total_regions > 0:
+                st.success(f"✓ {text_res.message}")
+                calib_res = st.session_state.get(f"{side_key}_calibration")
+                tm1, tm2, tm3 = st.columns(3)
+                tm1.metric("Text Regions", text_res.total_regions)
+                avg_w = np.mean([r.width_px for r in text_res.regions])
+                avg_h = np.mean([r.height_px for r in text_res.regions])
+                tm2.metric("Avg Region Width", f"{avg_w:.1f} px")
+                if calib_res and calib_res.is_calibrated:
+                    avg_h_mm = avg_h / calib_res.pixels_per_mm
+                    tm3.metric("Avg Region Height", f"{avg_h:.1f} px ({avg_h_mm:.2f} mm)")
+                else:
+                    tm3.metric("Avg Region Height", f"{avg_h:.1f} px")
+            else:
+                st.warning(f"⚠️ {text_res.message}")
+
+        # Visual preview hierarchy
+        if text_res is not None and text_res.annotated_image is not None:
+            st.image(
+                cv2.cvtColor(text_res.annotated_image, cv2.COLOR_BGR2RGB),
+                caption=f"{side_key.title()} Detected Text Regions ({text_res.total_regions} cyan boxes)",
+                use_container_width=True,
+            )
+            with st.expander(f"📋 View Detected Text Regions Details ({text_res.total_regions})"):
+                calib_res = st.session_state.get(f"{side_key}_calibration")
+                region_data = []
+                for idx, reg in enumerate(text_res.regions):
+                    item = {
+                        "Region #": idx + 1,
+                        "Bounding Box": str(reg.bbox),
+                        "Width (px)": f"{reg.width_px:.1f}",
+                        "Height (px)": f"{reg.height_px:.1f}",
+                        "Confidence": f"{reg.confidence:.2f}",
+                    }
+                    if calib_res and calib_res.is_calibrated:
+                        item["Height (mm)"] = f"{(reg.height_px / calib_res.pixels_per_mm):.2f}"
+                    region_data.append(item)
+                st.dataframe(region_data, use_container_width=True)
+        elif coin_res is not None and coin_res.annotated_image is not None:
+            st.image(
+                cv2.cvtColor(coin_res.annotated_image, cv2.COLOR_BGR2RGB),
+                caption=f"{side_key.title()} Coin Detected: D={coin_res.pixel_diameter:.1f}px",
+                use_container_width=True,
+            )
+        else:
+            st.image(
+                validated_img.image,
+                caption=f"{side_key.title()} Label Preview ({validated_img.width} × {validated_img.height} px)",
+                use_container_width=True,
+            )
 
         # Metadata cards
         meta = validated_img.metadata
@@ -307,6 +399,7 @@ if st.session_state.get("current_scan") is not None:
 
     st.info(
         "Scan registered in database table `scans`. Storage upload verified. "
-        "Next steps: Task 5 (Coin Detection) and Task 6 (Pixels/mm Calibration)."
+        "Completed: Task 5 (Coin Detection), Task 6 (Calibration), Task 7 (Text Region Detection). "
+        "Next step: Task 8 (OCR Extraction via PaddleOCR)."
     )
 
