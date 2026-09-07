@@ -8,7 +8,8 @@
 --   3. extracted_fields
 --   4. rules
 --   5. compliance_results
---   6. storage buckets setup & security policies
+--   6. correction_logs
+--   7. storage buckets setup & security policies
 -- ==============================================================================
 
 -- Enable UUID extension if not already enabled
@@ -322,3 +323,23 @@ VALUES
         '{"default_min_height_mm": 1.0}'::jsonb
     )
 ON CONFLICT (rule_code) DO NOTHING;
+
+-- ==============================================================================
+-- 9. CORRECTION_LOGS TABLE
+-- Audit log of manual inspector field corrections and overrides (Task 15).
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS correction_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    scan_id UUID NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+    field_name TEXT NOT NULL,
+    original_value TEXT,
+    corrected_value TEXT NOT NULL,
+    inspector_id TEXT NOT NULL DEFAULT 'INS-001',
+    reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_correction_logs_scan_id ON correction_logs(scan_id);
+CREATE INDEX IF NOT EXISTS idx_correction_logs_field_name ON correction_logs(field_name);
+CREATE INDEX IF NOT EXISTS idx_correction_logs_inspector_id ON correction_logs(inspector_id);
+CREATE INDEX IF NOT EXISTS idx_correction_logs_created_at ON correction_logs(created_at DESC);

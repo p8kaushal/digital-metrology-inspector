@@ -8,6 +8,7 @@ Handles live Supabase connections and graceful offline mock fallback.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import io
 import logging
@@ -18,6 +19,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from PIL import Image
 
 from src import db
+from src.consolidation import (
+    ConsolidatedProductRecord,
+    MANDATORY_DECLARATIONS,
+    consolidate_scan_records,
+)
 from src.image_handler import (
     ValidatedImage,
     compute_image_metadata,
@@ -786,4 +792,317 @@ def upload_inspection_report(
 
     logger.info("Inspection report uploaded successfully for scan %s: %s", scan_id_str, result)
     return result
+
+
+# ==============================================================================
+# Task 15: Inspector Manual Verification & Field Corrections
+# ==============================================================================
+
+@dataclass
+class ManualCorrectionResult(ConsolidatedProductRecord):
+    """Container for manual correction application results.
+
+    Inherits from ConsolidatedProductRecord to provide direct attribute and dict
+    access to consolidated fields, while also tracking logged corrections audit entries.
+    """
+
+    logged_corrections: List[Dict[str, Any]] = field(default_factory=list)
+    corrections_count: int = 0
+    scan_id: str = ""
+    inspector_id: str = "INS-001"
+    status: str = "success"
+    message: str = ""
+
+    @property
+    def record(self) -> ConsolidatedProductRecord:
+        """Self-reference to the underlying consolidated record."""
+        return self
+
+    def __repr__(self) -> str:
+        return (
+            f"<ManualCorrectionResult scan_id='{self.scan_id}' "
+            f"corrections_count={self.corrections_count} "
+            f"completeness_pct={self.completeness_pct:.1f}% "
+            f"inspector_id='{self.inspector_id}'>"
+        )
+
+
+def apply_manual_corrections(
+    scan_id: str,
+    corrections_dict: Dict[str, Any],
+    inspector_id: str = "INS-001",
+    reason: Optional[str] = None,
+    current_record: Optional[ConsolidatedProductRecord] = None,
+) -> ManualCorrectionResult:
+    """Apply manual inspector corrections to extracted fields and product master record.
+
+    Performs:
+    1. Validates scan_id and ensures parent scan record exists in database.
+    2. Updates or creates extracted_fields in DB with is_corrected=True and new value.
+    3. Logs each change to the Supabase correction_logs audit table via db.log_field_correction().
+    4. Re-consolidates product record with updated values, recalculating Legal Metrology
+       mandatory declaration completeness and missing fields.
+    5. Synchronizes the updated consolidated product record in the database (products table)
+       and links it to the scan.
+
+    Args:
+        scan_id: UUID of the parent scan.
+        corrections_dict: Mapping of field_name to new value, or dict containing
+            {'value': ..., 'original_value': ..., 'reason': ...}.
+        inspector_id: Badge or ID of inspecting officer (default 'INS-001').
+        reason: Optional default audit justification for the corrections.
+        current_record: Optional in-memory ConsolidatedProductRecord to base updates on.
+
+    Returns:
+        ManualCorrectionResult containing updated consolidated record fields and audit logs.
+
+    Raises:
+        ValueError: If scan_id is missing or empty.
+    """
+    if not scan_id or not str(scan_id).strip():
+        raise ValueError("scan_id is required and cannot be empty.")
+
+    scan_id_str = str(scan_id).strip()
+    inspector_id_str = str(inspector_id or "INS-001").strip()
+    logger.info("Applying manual corrections for scan_id=%s by inspector=%s...", scan_id_str, inspector_id_str)
+
+    # 1. Ensure parent scan record exists in scans table
+    scan_record = db.get_scan(scan_id_str)
+    product_id = None
+    if scan_record and scan_record.get("product_id"):
+        product_id = scan_record.get("product_id")
+    elif current_record and getattr(current_record, "product_id", None):
+        product_id = current_record.product_id
+    else:
+        product_id = str(uuid.uuid4())
+
+    if scan_record is None:
+        logger.info("Scan %s not found in DB. Auto-creating scan entry...", scan_id_str)
+        scan_record = db.create_scan({
+            "id": scan_id_str,
+            "scan_id": scan_id_str,
+            "product_id": product_id,
+            "status": "processing",
+            "notes": f"Auto-created during manual correction application by {inspector_id_str}",
+        })
+
+    # 2. Retrieve existing extracted fields from DB
+    existing_db_fields = db.get_extracted_fields(scan_id_str)
+    existing_product = db.get_product(product_id) if product_id else None
+
+    # 3. Establish base ConsolidatedProductRecord
+    if current_record is not None:
+        base_record = ConsolidatedProductRecord(
+            product_id=current_record.product_id or product_id,
+            brand_name=current_record.brand_name,
+            mrp=current_record.mrp,
+            net_quantity=current_record.net_quantity,
+            mfg_date=current_record.mfg_date,
+            expiry_date=current_record.expiry_date,
+            batch_number=current_record.batch_number,
+            manufacturer_details=current_record.manufacturer_details,
+            consumer_care=current_record.consumer_care,
+            country_of_origin=current_record.country_of_origin,
+            unit_sale_price=current_record.unit_sale_price,
+            front_fields=dict(current_record.front_fields or {}),
+            back_fields=dict(current_record.back_fields or {}),
+            font_measurements=dict(current_record.font_measurements or {}),
+            completeness_pct=current_record.completeness_pct,
+            missing_declarations=list(current_record.missing_declarations or []),
+            resolved_conflicts=list(current_record.resolved_conflicts or []),
+        )
+    elif existing_product:
+        mrp_str = str(existing_product.get("mrp") or existing_product.get("mrp_declared") or "")
+        net_qty_str = str(existing_product.get("net_quantity") or existing_product.get("net_quantity_declared") or "")
+        base_record = ConsolidatedProductRecord(
+            product_id=product_id,
+            brand_name=existing_product.get("name") or existing_product.get("brand") or "",
+            mrp=mrp_str,
+            net_quantity=net_qty_str,
+            mfg_date=existing_product.get("mfg_date") or "",
+            expiry_date=existing_product.get("expiry_date") or "",
+            batch_number=existing_product.get("batch_number") or "",
+            manufacturer_details=existing_product.get("manufacturer_name") or existing_product.get("manufacturer_details") or "",
+            consumer_care=existing_product.get("consumer_care") or "",
+            country_of_origin=existing_product.get("country_of_origin") or "",
+            unit_sale_price=existing_product.get("unit_sale_price") or "",
+        )
+    else:
+        # Reconstruct from existing extracted fields in DB
+        f_fields = {f["field_name"]: f for f in existing_db_fields if f.get("side") == "front"}
+        b_fields = {f["field_name"]: f for f in existing_db_fields if f.get("side") == "back"}
+        if f_fields or b_fields:
+            base_record = consolidate_scan_records(
+                front_parsed=f_fields,
+                back_parsed=b_fields,
+                scan_id=scan_id_str,
+            )
+        else:
+            base_record = ConsolidatedProductRecord(product_id=product_id)
+
+    # Field alias mapping for standard declarations
+    ALIAS_MAP = {
+        "brand": "brand_name",
+        "brand_name": "brand_name",
+        "name": "brand_name",
+        "mrp": "mrp",
+        "mrp_declared": "mrp",
+        "net_quantity": "net_quantity",
+        "net_quantity_declared": "net_quantity",
+        "net_qty": "net_quantity",
+        "manufacturer": "manufacturer_details",
+        "manufacturer_details": "manufacturer_details",
+        "manufacturer_name": "manufacturer_details",
+        "mfg_date": "mfg_date",
+        "date_of_manufacture": "mfg_date",
+        "expiry_date": "expiry_date",
+        "exp_date": "expiry_date",
+        "batch_number": "batch_number",
+        "batch_no": "batch_number",
+        "lot_number": "batch_number",
+        "consumer_care": "consumer_care",
+        "consumer_care_details": "consumer_care",
+        "country_of_origin": "country_of_origin",
+        "origin_country": "country_of_origin",
+        "unit_sale_price": "unit_sale_price",
+        "usp": "unit_sale_price",
+    }
+
+    logged_corrections: List[Dict[str, Any]] = []
+
+    # 4. Iterate over corrections and update DB + record
+    for raw_key, corr_item in (corrections_dict or {}).items():
+        key_clean = str(raw_key).strip().lower()
+        canonical_key = ALIAS_MAP.get(key_clean, key_clean)
+
+        if isinstance(corr_item, dict):
+            new_val = corr_item.get("value") or corr_item.get("corrected_value") or corr_item.get("corrected") or ""
+            spec_orig = corr_item.get("original_value") or corr_item.get("original")
+            spec_reason = corr_item.get("reason") or reason
+        else:
+            new_val = str(corr_item) if corr_item is not None else ""
+            spec_orig = None
+            spec_reason = reason
+
+        new_val_str = str(new_val).strip()
+
+        # Determine original value
+        if spec_orig is not None:
+            orig_val_str = str(spec_orig).strip()
+        else:
+            rec_val = getattr(base_record, canonical_key, None)
+            if rec_val:
+                orig_val_str = str(rec_val).strip()
+            else:
+                db_match = next((f for f in existing_db_fields if f.get("field_name") in (canonical_key, raw_key, key_clean)), None)
+                if db_match:
+                    orig_val_str = str(db_match.get("parsed_value") or db_match.get("raw_text") or "").strip()
+                elif existing_product and canonical_key in existing_product:
+                    orig_val_str = str(existing_product.get(canonical_key) or "").strip()
+                else:
+                    orig_val_str = ""
+
+        # (a) Update extracted_fields in DB with is_corrected=True and new value
+        matching_fields = [
+            f for f in existing_db_fields
+            if f.get("field_name") in (canonical_key, raw_key, key_clean)
+        ]
+
+        if matching_fields:
+            for f_row in matching_fields:
+                db.update_extracted_field(
+                    f_row["id"],
+                    {
+                        "parsed_value": new_val_str,
+                        "raw_text": new_val_str,
+                        "is_corrected": True,
+                    },
+                )
+                f_row["parsed_value"] = new_val_str
+                f_row["is_corrected"] = True
+        else:
+            # Create a consolidated extracted_fields record for newly declared statutory field
+            new_db_field = db.save_extracted_fields(scan_id_str, [{
+                "scan_id": scan_id_str,
+                "side": "consolidated",
+                "field_name": canonical_key,
+                "raw_text": new_val_str,
+                "parsed_value": new_val_str,
+                "confidence": 1.0,
+                "is_corrected": True,
+            }])
+            if new_db_field:
+                existing_db_fields.extend(new_db_field)
+
+        # (b) Log entry to correction_logs
+        log_entry = db.log_field_correction(
+            scan_id=scan_id_str,
+            field_name=canonical_key,
+            original_value=orig_val_str if orig_val_str else None,
+            corrected_value=new_val_str,
+            inspector_id=inspector_id_str,
+            reason=spec_reason,
+        )
+        logged_corrections.append(log_entry)
+
+        # (c) Update attribute on base_record
+        if hasattr(base_record, canonical_key):
+            setattr(base_record, canonical_key, new_val_str)
+
+    # 5. Recompute completeness across the 9 mandatory declarations
+    missing_declarations = []
+    for decl in MANDATORY_DECLARATIONS:
+        decl_val = getattr(base_record, decl, "")
+        if not decl_val or not str(decl_val).strip():
+            missing_declarations.append(decl)
+
+    base_record.missing_declarations = missing_declarations
+    present_count = len(MANDATORY_DECLARATIONS) - len(missing_declarations)
+    base_record.completeness_pct = round((present_count / float(len(MANDATORY_DECLARATIONS))) * 100.0, 2)
+    base_record.product_id = product_id
+
+    # 6. Synchronize updated product record in database
+    db_payload = base_record.to_db_payload()
+    if db.get_product(product_id):
+        db.update_product(product_id, db_payload)
+    else:
+        db.create_product(db_payload)
+
+    # Link product in scans table
+    db.update_scan(scan_id_str, {"product_id": product_id})
+
+    logger.info(
+        "Manual corrections applied for scan %s: %d field(s) corrected. Updated completeness: %.1f%% (%d/%d).",
+        scan_id_str,
+        len(logged_corrections),
+        base_record.completeness_pct,
+        present_count,
+        len(MANDATORY_DECLARATIONS),
+    )
+
+    return ManualCorrectionResult(
+        product_id=base_record.product_id,
+        brand_name=base_record.brand_name,
+        mrp=base_record.mrp,
+        net_quantity=base_record.net_quantity,
+        mfg_date=base_record.mfg_date,
+        expiry_date=base_record.expiry_date,
+        batch_number=base_record.batch_number,
+        manufacturer_details=base_record.manufacturer_details,
+        consumer_care=base_record.consumer_care,
+        country_of_origin=base_record.country_of_origin,
+        unit_sale_price=base_record.unit_sale_price,
+        front_fields=base_record.front_fields,
+        back_fields=base_record.back_fields,
+        font_measurements=base_record.font_measurements,
+        completeness_pct=base_record.completeness_pct,
+        missing_declarations=base_record.missing_declarations,
+        resolved_conflicts=base_record.resolved_conflicts,
+        logged_corrections=logged_corrections,
+        corrections_count=len(logged_corrections),
+        scan_id=scan_id_str,
+        inspector_id=inspector_id_str,
+        status="success",
+        message=f"Applied {len(logged_corrections)} manual correction(s) for scan {scan_id_str}",
+    )
 

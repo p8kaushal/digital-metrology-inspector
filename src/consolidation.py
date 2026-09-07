@@ -97,6 +97,20 @@ class ConsolidatedProductRecord:
         """Convert record to dictionary representation."""
         return asdict(self)
 
+    def __getitem__(self, key: str) -> Any:
+        if hasattr(self, key):
+            return getattr(self, key)
+        raise KeyError(key)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        setattr(self, key, value)
+
+    def __contains__(self, key: str) -> bool:
+        return hasattr(self, key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
     def to_db_payload(self) -> Dict[str, Any]:
         """Convert record to a schema-compatible dictionary for the Supabase products table."""
         mrp_numeric = None

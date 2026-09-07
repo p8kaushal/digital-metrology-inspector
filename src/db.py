@@ -53,6 +53,7 @@ class MockDatabase:
         self.extracted_fields: Dict[str, Dict[str, Any]] = {}
         self.rules: Dict[str, Dict[str, Any]] = {}
         self.compliance_results: Dict[str, Dict[str, Any]] = {}
+        self.correction_logs: Dict[str, Dict[str, Any]] = {}
         self.storage: Dict[str, Dict[str, bytes]] = {
             "product-images": {},
             "inspection-reports": {},
@@ -743,3 +744,89 @@ def get_file_public_url(bucket_name: str, destination_path: str) -> str:
             logger.error("Supabase storage get_public_url error (%s).", exc)
 
     return f"mock://{bucket_name}/{destination_path}"
+
+
+# ==============================================================================
+# Helper Functions: Correction Logs (Task 15)
+# ==============================================================================
+
+def log_field_correction(
+    scan_id: str,
+    field_name: str,
+    original_value: Optional[str],
+    corrected_value: str,
+    inspector_id: str = "INS-001",
+    reason: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Log a manual field correction to the correction_logs audit table.
+
+    Args:
+        scan_id: UUID string of the parent scan.
+        field_name: Statutory declaration field name being corrected (e.g., 'mrp', 'net_quantity').
+        original_value: Value prior to manual correction (or None/empty if missing).
+        corrected_value: New value entered or verified by inspector.
+        inspector_id: Identifier or badge number of inspecting officer (default 'INS-001').
+        reason: Optional justification or note for audit trail.
+
+    Returns:
+        Created correction log record dictionary.
+    """
+    now = _get_utc_now_iso()
+    log_id = str(uuid.uuid4())
+    record = {
+        "id": log_id,
+        "scan_id": str(scan_id),
+        "field_name": str(field_name),
+        "original_value": str(original_value) if original_value is not None else None,
+        "corrected_value": str(corrected_value),
+        "inspector_id": str(inspector_id or "INS-001"),
+        "reason": str(reason) if reason is not None else None,
+        "created_at": now,
+    }
+
+    client = get_supabase_client()
+    if client is not None:
+        try:
+            response = client.table("correction_logs").insert(record).execute()
+            if response.data:
+                return response.data[0]
+        except Exception as exc:
+            logger.error("Supabase insert error on correction_logs (%s). Falling back to mock store.", exc)
+
+    _mock_db.correction_logs[log_id] = record
+    logger.info(
+        "Logged correction for scan=%s, field=%s: '%s' -> '%s' (by %s)",
+        scan_id,
+        field_name,
+        original_value,
+        corrected_value,
+        inspector_id,
+    )
+    return record
+
+
+def get_correction_logs(scan_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrieve all correction log entries, optionally filtered by scan_id.
+
+    Args:
+        scan_id: Optional scan UUID filter.
+
+    Returns:
+        List of correction log dictionaries sorted by created_at descending.
+    """
+    client = get_supabase_client()
+    if client is not None:
+        try:
+            query = client.table("correction_logs").select("*")
+            if scan_id:
+                query = query.eq("scan_id", str(scan_id))
+            response = query.order("created_at", desc=True).execute()
+            if response.data:
+                return response.data
+        except Exception as exc:
+            logger.error("Supabase query error on correction_logs (%s). Using mock store.", exc)
+
+    logs = list(_mock_db.correction_logs.values())
+    if scan_id:
+        logs = [e for e in logs if e.get("scan_id") == str(scan_id)]
+    return sorted(logs, key=lambda x: x.get("created_at", ""), reverse=True)

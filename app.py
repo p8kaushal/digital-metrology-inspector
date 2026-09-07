@@ -18,6 +18,7 @@ from src.ocr_engine import extract_text_from_image
 from src.field_parser import parse_ocr_lines
 from src.font_measurement import measure_font_heights
 
+from src import db
 from src.image_handler import (
     DEFAULT_CACHE_DIR,
     check_inspection_readiness,
@@ -26,6 +27,7 @@ from src.image_handler import (
 )
 from src.scan_service import (
     ReportUploadResult,
+    apply_manual_corrections,
     process_scan_upload,
     save_scan_extraction_results,
     upload_inspection_report,
@@ -63,6 +65,8 @@ if "report_result" not in st.session_state:
     st.session_state["report_result"] = None
 if "report_upload_result" not in st.session_state:
     st.session_state["report_upload_result"] = None
+if "correction_saved_msg" not in st.session_state:
+    st.session_state["correction_saved_msg"] = None
 
 # Sidebar Instructions & System Info
 with st.sidebar:
@@ -109,6 +113,7 @@ with st.sidebar:
         st.session_state["consolidated_record"] = None
         st.session_state["report_result"] = None
         st.session_state["report_upload_result"] = None
+        st.session_state["correction_saved_msg"] = None
         st.rerun()
 
     st.divider()
@@ -496,7 +501,9 @@ if front_parsed_data is not None or back_parsed_data is not None or st.session_s
     front_fonts = st.session_state.get("front_font_report")
     back_fonts = st.session_state.get("back_font_report")
 
-    if front_parsed_data is not None or back_parsed_data is not None:
+    if st.session_state.get("consolidated_record") is not None:
+        consolidated_rec = st.session_state["consolidated_record"]
+    elif front_parsed_data is not None or back_parsed_data is not None:
         consolidated_rec = consolidate_scan_records(
             front_parsed=front_parsed_data,
             back_parsed=back_parsed_data,
@@ -506,7 +513,7 @@ if front_parsed_data is not None or back_parsed_data is not None or st.session_s
         )
         st.session_state["consolidated_record"] = consolidated_rec
     else:
-        consolidated_rec = st.session_state.get("consolidated_record")
+        consolidated_rec = None
 
     if consolidated_rec is not None:
         st.markdown("---")
@@ -622,6 +629,165 @@ if front_parsed_data is not None or back_parsed_data is not None or st.session_s
                     st.dataframe(conflict_rows, use_container_width=True)
 
             st.caption(f"💾 **Product Master Record Synced with Database:** Table `products` | Record ID: `{consolidated_rec.product_id}`")
+
+            # ==============================================================================
+            # ✏️ Inspector Manual Verification & Correction Panel (Task 15)
+            # ==============================================================================
+            st.markdown("---")
+            with st.expander("✏️ Inspector Manual Verification & Correction Panel", expanded=True):
+                st.markdown("### ✏️ Inspector Manual Verification & Correction Panel")
+                st.write(
+                    "Review, modify, and complete statutory declarations extracted by OCR. "
+                    "All edits are audited in Supabase `correction_logs` and instantly update the product master record."
+                )
+
+                if st.session_state.get("correction_saved_msg"):
+                    st.success(st.session_state["correction_saved_msg"])
+
+                with st.form(key="form_inspector_corrections"):
+                    corr_meta1, corr_meta2 = st.columns([1, 2])
+                    with corr_meta1:
+                        form_inspector_id = st.text_input(
+                            "Inspector ID / Badge #",
+                            value="INS-001",
+                            key="input_inspector_id",
+                            help="Unique badge ID of the inspecting officer logging changes",
+                        )
+                    with corr_meta2:
+                        form_reason = st.text_input(
+                            "Audit Justification / Note",
+                            value="",
+                            placeholder="e.g. OCR misread font; manual verification against physical packaging",
+                            key="input_correction_reason",
+                            help="Optional rationale for auditing purposes",
+                        )
+
+                    st.markdown("##### 📝 Mandatory Packaging Declarations")
+                    corr_col1, corr_col2 = st.columns(2)
+                    with corr_col1:
+                        edit_brand = st.text_input(
+                            "Brand / Common Commodity Name",
+                            value=consolidated_rec.brand_name or "",
+                            key="form_field_brand_name",
+                        )
+                        edit_mrp = st.text_input(
+                            "Maximum Retail Price (MRP)",
+                            value=consolidated_rec.mrp or "",
+                            key="form_field_mrp",
+                        )
+                        edit_net_qty = st.text_input(
+                            "Net Quantity",
+                            value=consolidated_rec.net_quantity or "",
+                            key="form_field_net_quantity",
+                        )
+                        edit_mfg = st.text_input(
+                            "Date of Manufacture",
+                            value=consolidated_rec.mfg_date or "",
+                            key="form_field_mfg_date",
+                        )
+                        edit_exp = st.text_input(
+                            "Expiry / Best Before Date",
+                            value=consolidated_rec.expiry_date or "",
+                            key="form_field_expiry_date",
+                        )
+                    with corr_col2:
+                        edit_batch = st.text_input(
+                            "Batch / Lot Number",
+                            value=consolidated_rec.batch_number or "",
+                            key="form_field_batch_number",
+                        )
+                        edit_mfr = st.text_area(
+                            "Manufacturer / Packer Details",
+                            value=consolidated_rec.manufacturer_details or "",
+                            height=80,
+                            key="form_field_manufacturer_details",
+                        )
+                        edit_care = st.text_input(
+                            "Consumer Care Contact",
+                            value=consolidated_rec.consumer_care or "",
+                            key="form_field_consumer_care",
+                        )
+                        edit_origin = st.text_input(
+                            "Country of Origin",
+                            value=consolidated_rec.country_of_origin or "",
+                            key="form_field_country_of_origin",
+                        )
+                        edit_usp = st.text_input(
+                            "Unit Sale Price (USP)",
+                            value=consolidated_rec.unit_sale_price or "",
+                            key="form_field_unit_sale_price",
+                        )
+
+                    btn_save_corrections = st.form_submit_button(
+                        "Save Manual Corrections & Update Master Record",
+                        type="primary",
+                        use_container_width=True,
+                    )
+
+                if btn_save_corrections:
+                    form_fields = {
+                        "brand_name": edit_brand,
+                        "mrp": edit_mrp,
+                        "net_quantity": edit_net_qty,
+                        "mfg_date": edit_mfg,
+                        "expiry_date": edit_exp,
+                        "batch_number": edit_batch,
+                        "manufacturer_details": edit_mfr,
+                        "consumer_care": edit_care,
+                        "country_of_origin": edit_origin,
+                        "unit_sale_price": edit_usp,
+                    }
+
+                    changed_fields = {}
+                    for f_name, f_val in form_fields.items():
+                        prev_val = getattr(consolidated_rec, f_name, "") or ""
+                        if str(f_val).strip() != str(prev_val).strip():
+                            changed_fields[f_name] = {
+                                "value": str(f_val).strip(),
+                                "original_value": str(prev_val).strip(),
+                                "reason": form_reason or "Manual inspector verification",
+                            }
+
+                    if changed_fields:
+                        scan_id_for_corr = (
+                            active_scan_id
+                            or (active_scan.get("scan_id") if active_scan else None)
+                            or getattr(consolidated_rec, "product_id", None)
+                            or str(uuid.uuid4())
+                        )
+                        updated_rec = apply_manual_corrections(
+                            scan_id=scan_id_for_corr,
+                            corrections_dict=changed_fields,
+                            inspector_id=form_inspector_id,
+                            reason=form_reason,
+                            current_record=consolidated_rec,
+                        )
+                        st.session_state["consolidated_record"] = updated_rec
+                        consolidated_rec = updated_rec
+                        success_text = f"✏️ Saved {len(changed_fields)} field correction(s) to Supabase audit log"
+                        st.session_state["correction_saved_msg"] = success_text
+                        st.success(success_text)
+                    else:
+                        st.info("ℹ️ No field modifications detected. Master record remains unchanged.")
+
+                # Render audit trail if logs exist for this scan
+                scan_id_for_logs = active_scan_id or (active_scan.get("scan_id") if active_scan else None)
+                audit_logs = db.get_correction_logs(scan_id_for_logs) if scan_id_for_logs else db.get_correction_logs()
+                if audit_logs:
+                    st.markdown("###### 📜 Inspector Correction Audit Trail")
+                    log_rows = []
+                    for log in audit_logs[:10]:
+                        raw_created = log.get("created_at", "")
+                        fmt_time = raw_created[:19].replace("T", " ") if "T" in raw_created else raw_created
+                        log_rows.append({
+                            "Timestamp": fmt_time,
+                            "Field": DECLARATION_TITLES.get(log.get("field_name"), log.get("field_name", "").title()),
+                            "Original Value": log.get("original_value") or "—",
+                            "Corrected Value": log.get("corrected_value", ""),
+                            "Inspector": log.get("inspector_id", "INS-001"),
+                            "Reason": log.get("reason") or "Manual correction",
+                        })
+                    st.dataframe(log_rows, use_container_width=True)
 
             # 📄 Inspection Report Generation & Export (Task 13)
             st.markdown("---")
